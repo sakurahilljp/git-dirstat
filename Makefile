@@ -2,7 +2,7 @@
 
 BINARY_NAME=git-dirstat
 DIST_DIR=dist
-LDFLAGS=-s -w -X github.com/sakurahilljp/git-dirstat/cmd.Version=v0.1.0
+LDFLAGS=-s -w -X github.com/sakurahilljp/git-dirstat/cmd.Version=v0.2.0
 
 all: test build
 

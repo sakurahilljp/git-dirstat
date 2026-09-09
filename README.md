@@ -153,7 +153,7 @@ git-dirstat -f tsv > stats.tsv
 | `--format` | `-f` | `table` | Output format: `table`, `json`, `csv`, or `tsv`. |
 | `--exclude` | `-e` | `[]` | Exclude paths matching glob patterns (`doublestar` syntax). Repeatable. |
 | `--no-color` | | `false` | Suppress ANSI color codes in table output. |
-| `--version` | `-v` | | Print the version (`v0.1.0`). |
+| `--version` | `-v` | | Print the version (`v0.2.0`). |
 | `--help` | `-h` | | Print help and usage information. |
 
 ---
