@@ -201,15 +201,17 @@ func DiffWorkingTree(repo *git.Repository, headCommit *object.Commit, repoRoot s
 		if headExists && diskExists {
 			if headIsBinary || diskIsBinary {
 				diskBytes, _ := os.ReadFile(fullDiskPath)
-				headReader, _ := headFile.Reader()
-				headBytes, _ := io.ReadAll(headReader)
-				if !bytes.Equal(headBytes, diskBytes) {
-					results = append(results, model.FileDiff{
-						Path:     normPath,
-						Added:    0,
-						Deleted:  0,
-						IsBinary: true,
-					})
+				if headReader, err := headFile.Reader(); err == nil {
+					headBytes, _ := io.ReadAll(headReader)
+					_ = headReader.Close()
+					if !bytes.Equal(headBytes, diskBytes) {
+						results = append(results, model.FileDiff{
+							Path:     normPath,
+							Added:    0,
+							Deleted:  0,
+							IsBinary: true,
+						})
+					}
 				}
 			} else {
 				if headContent == diskContent {
