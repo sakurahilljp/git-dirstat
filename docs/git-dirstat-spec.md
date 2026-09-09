@@ -12,7 +12,7 @@ Implemented in **Go** using the **`go-git`** (Pure Go) library, the tool runs as
 
 | Item | Specification / Technology |
 | :--- | :--- |
-| **Language** | Go (>= 1.22 recommended) |
+| **Language** | Go (>= 1.25) |
 | **Core Engine** | `github.com/go-git/go-git/v5` (Pure Go, CGO-free) |
 | **CLI Parser** | `github.com/spf13/cobra` |
 | **Pattern Matcher** | `github.com/bmatcuk/doublestar/v4` |
