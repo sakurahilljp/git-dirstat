@@ -13,6 +13,7 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/sakurahilljp/git-dirstat/cmd"
+	"github.com/sakurahilljp/git-dirstat/pkg/gitutil"
 	"github.com/sakurahilljp/git-dirstat/pkg/model"
 )
 
@@ -230,4 +231,62 @@ func TestE2E_Comprehensive(t *testing.T) {
 			t.Errorf("expected exit code 1, got %v", err)
 		}
 	})
+
+	// 7. Git Worktree Support
+	t.Run("worktree support", func(t *testing.T) {
+		wtDir := t.TempDir()
+		wtGitDir := filepath.Join(dir, ".git", "worktrees", "wt-e2e")
+		if err := os.MkdirAll(wtGitDir, 0755); err != nil {
+			t.Fatalf("failed to mkdir worktree git dir: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(wtDir, ".git"), []byte("gitdir: "+wtGitDir+"\n"), 0644); err != nil {
+			t.Fatalf("failed to write worktree .git file: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(wtGitDir, "commondir"), []byte("../..\n"), 0644); err != nil {
+			t.Fatalf("failed to write commondir: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(wtGitDir, "gitdir"), []byte(filepath.Join(wtDir, ".git")+"\n"), 0644); err != nil {
+			t.Fatalf("failed to write gitdir: %v", err)
+		}
+		headRef, err := repo.Head()
+		if err != nil {
+			t.Fatalf("failed to get head ref: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(wtGitDir, "HEAD"), []byte("ref: "+headRef.Name().String()+"\n"), 0644); err != nil {
+			t.Fatalf("failed to write HEAD: %v", err)
+		}
+
+		// Open repo from wtDir and checkout HEAD to populate the worktree
+		wtCtx, err := gitutil.OpenRepository(wtDir)
+		if err != nil {
+			t.Fatalf("failed to open worktree repo: %v", err)
+		}
+		wtObj, err := wtCtx.Repo.Worktree()
+		if err != nil {
+			t.Fatalf("failed to get worktree: %v", err)
+		}
+		if err := wtObj.Checkout(&git.CheckoutOptions{Force: true}); err != nil {
+			t.Fatalf("failed to checkout worktree: %v", err)
+		}
+
+		// Modify a tracked file in the worktree directory
+		if err := os.WriteFile(filepath.Join(wtDir, "README.md"), []byte("# Project\nline 2\n"), 0644); err != nil {
+			t.Fatalf("failed to write file in worktree: %v", err)
+		}
+
+		// Run git-dirstat inside worktree with JSON format
+		out, err := runCmdInDir(wtDir, "-f", "json")
+		if err != nil {
+			t.Fatalf("runCmdInDir failed in worktree: %v", err)
+		}
+
+		var report model.Report
+		if err := json.Unmarshal([]byte(out), &report); err != nil {
+			t.Fatalf("failed to parse json output: %v, out: %s", err, out)
+		}
+		if report.Summary.TotalFiles != 1 || report.Summary.TotalAdded != 1 {
+			t.Errorf("expected 1 file with 1 insertion, got %+v", report.Summary)
+		}
+	})
 }
+

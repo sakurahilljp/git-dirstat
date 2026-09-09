@@ -9,6 +9,7 @@ Built entirely on pure Go ([go-git](https://github.com/go-git/go-git)), `git-dir
 ## Features
 
 - **Pure Go Engine**: Powered by `go-git`, ensuring fast, deterministic, cross-platform execution without invoking external Git processes.
+- **Git Worktree Support**: Full compatibility with `git worktree` environments via automatic pointer and `commondir` reference resolution.
 - **Rich Revision & Range Support**:
   - Uncommitted working tree diff against `HEAD` (staged + unstaged modifications).
   - Single commit or branch against `HEAD` (`<commit>`).

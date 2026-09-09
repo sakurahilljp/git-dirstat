@@ -299,3 +299,56 @@ func TestResolveCommits_NoCommonAncestor(t *testing.T) {
 		t.Errorf("expected ExitCode 1, got %v", err)
 	}
 }
+
+func TestOpenRepository_Worktree(t *testing.T) {
+	mainDir, repo := createTempGitRepo(t)
+	addCommit(t, repo, mainDir, "file.txt", []byte("initial\n"), "commit 1")
+
+	headRef, err := repo.Head()
+	if err != nil {
+		t.Fatalf("failed to get head of main repo: %v", err)
+	}
+
+	// Create a secondary worktree directory
+	wtDir := t.TempDir()
+	wtGitDir := filepath.Join(mainDir, ".git", "worktrees", "wt1")
+	if err := os.MkdirAll(wtGitDir, 0755); err != nil {
+		t.Fatalf("failed to mkdir worktree git dir: %v", err)
+	}
+
+	// 1. Write worktree .git file
+	if err := os.WriteFile(filepath.Join(wtDir, ".git"), []byte("gitdir: "+wtGitDir+"\n"), 0644); err != nil {
+		t.Fatalf("failed to write worktree .git file: %v", err)
+	}
+	// 2. Write commondir, gitdir, and HEAD in mainRepo/.git/worktrees/wt1
+	if err := os.WriteFile(filepath.Join(wtGitDir, "commondir"), []byte("../..\n"), 0644); err != nil {
+		t.Fatalf("failed to write commondir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(wtGitDir, "gitdir"), []byte(filepath.Join(wtDir, ".git")+"\n"), 0644); err != nil {
+		t.Fatalf("failed to write gitdir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(wtGitDir, "HEAD"), []byte("ref: "+headRef.Name().String()+"\n"), 0644); err != nil {
+		t.Fatalf("failed to write HEAD: %v", err)
+	}
+
+	// Now open repository from inside wtDir
+	ctx, err := OpenRepository(wtDir)
+	if err != nil {
+		t.Fatalf("OpenRepository failed on worktree: %v", err)
+	}
+
+	evalWtDir, _ := filepath.EvalSymlinks(wtDir)
+	evalRepoRoot, _ := filepath.EvalSymlinks(ctx.RepoRoot)
+	if evalRepoRoot != evalWtDir {
+		t.Errorf("expected RepoRoot %q, got %q", evalWtDir, evalRepoRoot)
+	}
+
+	head, err := ctx.Repo.Head()
+	if err != nil {
+		t.Fatalf("failed to get HEAD in worktree: %v", err)
+	}
+	if head.Hash() != headRef.Hash() {
+		t.Errorf("expected HEAD hash %v, got %v", headRef.Hash(), head.Hash())
+	}
+}
+

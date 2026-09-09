@@ -16,7 +16,8 @@ type RepositoryContext struct {
 // OpenRepository traverses upward from startPath to find and open the git repository.
 func OpenRepository(startPath string) (*RepositoryContext, error) {
 	repo, err := git.PlainOpenWithOptions(startPath, &git.PlainOpenOptions{
-		DetectDotGit: true,
+		DetectDotGit:          true,
+		EnableDotGitCommonDir: true,
 	})
 	if err != nil {
 		return nil, model.NewRuntimeError("failed to open git repository: %w", err)

@@ -74,7 +74,7 @@ git-dirstat [OPTIONS] [-t <target-path>] [<commit> [<commit>] | <commit>..<commi
 ### 5.1 Diff Extraction via go-git
 
 1. **Repository Discovery:**
-   * Traverse working directory upwards to resolve `.git` (via `git.PlainOpenWithOptions` with `DetectDotGit: true`).
+   * Traverse working directory upwards to resolve `.git` (via `git.PlainOpenWithOptions` with `DetectDotGit: true` and `EnableDotGitCommonDir: true` for full `git worktree` compatibility).
    * If `.git` is not found, or the repository has no commits yet (empty repository), exit with Exit Code 1.
 
 2. **Revision Resolution:**

@@ -113,7 +113,7 @@ flowchart TD
 - **Responsibilities**: Interacts with Git repositories via `go-git/v5` without spawning external processes.
 - **Key Modules**:
   - `repo.go`:
-    - `OpenRepository(startPath)`: Discovers `.git` upward from CWD with `DetectDotGit: true`.
+    - `OpenRepository(startPath)`: Discovers `.git` upward from CWD with `DetectDotGit: true` and `EnableDotGitCommonDir: true` (guaranteeing seamless compatibility with `git worktree` environments by traversing `commondir` references).
     - Verifies `repo.Head()`. If `.git` is not found or repository has zero commits, terminates with Exit Code 1.
   - `resolver.go`:
     - Resolves revisions (short/full SHA hashes, tags, branches, `HEAD~n`) via `repo.ResolveRevision()`.
