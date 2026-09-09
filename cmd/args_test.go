@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/sakurahilljp/git-dirstat/pkg/model"
@@ -206,6 +207,59 @@ func TestParseAndValidate(t *testing.T) {
 			}
 			if cfg.TargetPath != tt.wantTgt {
 				t.Errorf("TargetPath = %q, want %q", cfg.TargetPath, tt.wantTgt)
+			}
+		})
+	}
+}
+
+func TestParseAndValidate_Errors(t *testing.T) {
+	tests := []struct {
+		name        string
+		args        []string
+		expectedErr string
+	}{
+		{
+			name:        "too many commits",
+			args:        []string{"commit1", "commit2", "commit3"},
+			expectedErr: "too many commit arguments",
+		},
+		{
+			name:        "malformed two dots",
+			args:        []string{"commit1..commit2..commit3"},
+			expectedErr: "malformed range notation",
+		},
+		{
+			name:        "malformed three dots",
+			args:        []string{"commit1...commit2...commit3"},
+			expectedErr: "malformed range notation",
+		},
+		{
+			name:        "range with extra",
+			args:        []string{"commit1..commit2", "extra"},
+			expectedErr: "cannot combine range notation",
+		},
+		{
+			name:        "four dots",
+			args:        []string{"commit1....commit2"},
+			expectedErr: "malformed range notation",
+		},
+		{
+			name:        "multiple target paths after dash",
+			args:        []string{"--", "path1", "path2"},
+			expectedErr: "only one target path can be specified after '--'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := NewRootCommand()
+			cmd.SetArgs(tt.args)
+			err := cmd.Execute()
+			if err == nil {
+				t.Fatalf("expected error containing %q, got nil", tt.expectedErr)
+			}
+			if !strings.Contains(err.Error(), tt.expectedErr) {
+				t.Errorf("expected error containing %q, got %q", tt.expectedErr, err.Error())
 			}
 		})
 	}

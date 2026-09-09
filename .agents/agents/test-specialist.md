@@ -3,9 +3,14 @@ name: test-specialist
 description: Specialized QA and test engineer for exhaustive Go testing, unit/E2E test suite execution, race condition detection, boundary analysis, and test coverage optimization.
 model: pro
 tools:
-  - read_tools
-  - write_tools
   - run_command
+  - view_file
+  - write_to_file
+  - replace_file_content
+  - find_by_name
+  - grep_search
+  - list_dir
+  - send_message
 ---
 
 # Test Specialist Subagent

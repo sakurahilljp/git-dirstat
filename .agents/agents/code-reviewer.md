@@ -3,7 +3,11 @@ name: code-reviewer
 description: Specialized code reviewer for inspecting Go source code, architectural integrity, test coverage, resource safety, and strict specification conformance.
 model: pro
 tools:
-  - read_tools
+  - view_file
+  - find_by_name
+  - grep_search
+  - list_dir
+  - send_message
 ---
 
 # Code Reviewer Subagent
