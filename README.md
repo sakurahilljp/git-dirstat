@@ -26,6 +26,7 @@ Built entirely on pure Go ([go-git](https://github.com/go-git/go-git)), `git-dir
   - **JSON**: Machine-readable JSON output with detailed per-directory statistics.
   - **CSV / TSV**: Delimited plain text for spreadsheet analysis and CI/CD pipelines.
 - **Flexible Sorting**: Sort results by `added` (default), `deleted`, `net`, `files`, or `path`, with reverse order support (`--reverse` / `-r`).
+- **Binary File Support**: Modified binary files (e.g. images, archives, compiled binaries) are counted in `Files` (`+1`), with line counts set to zero (`Added: 0`, `Deleted: 0`, `Net: 0`).
 
 ---
 
@@ -64,9 +65,28 @@ The output binaries will be created under the `dist/` directory.
 
 ## Usage
 
-```text
+```bash
 git-dirstat [OPTIONS] [<commit> [<commit>] | <commit>..<commit> | <commit>...<commit>] [-- <target-path>]
 ```
+
+or via the flag syntax:
+
+```bash
+git-dirstat [OPTIONS] [-t <target-path>] [<commit> [<commit>] | <commit>..<commit> | <commit>...<commit>]
+```
+
+### Argument Resolution & Revision Syntax
+
+- **Supported Revisions**: Branch names (`main`), tag names (`v1.0.0`), full SHA hashes, short SHA hashes ($\ge 7$ chars), and relative revisions (`HEAD~1`, `HEAD~3`).
+- **Commit Range Resolution**:
+  - **Zero arguments**: Compares current `HEAD` against the working tree (combining staged and unstaged modifications; untracked files excluded).
+  - **One commit argument (`<commit>`)**: Compares `<commit>` against current `HEAD`.
+  - **Two-dot range (`<commit1>..<commit2>`)**: Compares `<commit1>` against `<commit2>`. If either side is omitted (e.g. `..feature` or `main..`), the missing side automatically defaults to `HEAD`.
+  - **Three-dot range (`<commit1>...<commit2>`)**: Compares the **merge base** (common ancestor) of `<commit1>` and `<commit2>` against `<commit2>`. If either side is omitted, the missing side defaults to `HEAD`.
+  - **Two arguments (`<commit1> <commit2>`)**: Compares `<commit1>` against `<commit2>`.
+- **Syntax Restrictions**:
+  - Combining range notation (`..` or `...`) with additional commit arguments is prohibited (Exit Code 2).
+  - Specifying both `-t / --target` and `-- <target-path>` simultaneously is prohibited (Exit Code 2).
 
 ### Examples
 
@@ -158,6 +178,26 @@ git-dirstat -f tsv > stats.tsv
 
 ---
 
+## Diff & Aggregation Behavior
+
+- **Root Files Grouping**: Files located directly inside the target directory without deeper subdirectories are grouped into:
+  - Table / CSV / TSV: `<target>/ (root files)` (or `(root files)` if target is repository root `.`).
+  - JSON: directory `path` set to target (e.g. `src/` or `.`) with `"is_root": true`.
+- **Sorting & Deterministic Tie-Breaking**:
+  - Default sort field is `added` descending.
+  - When sorting by `net`, values are evaluated as signed numbers (`+10 > 0 > -20` descending).
+  - Deterministic tie-breaking: rows with identical values are always sorted alphabetically by `path` in ascending order.
+  - The `--reverse` (`-r`) flag reverses the overall sorted order.
+- **Binary Files**: Modified binary files (e.g. images, PDFs, archives, compiled binaries) are counted as `+1` in `Files`, with `Added: 0`, `Deleted: 0`, and `Net: 0`.
+- **Renames & Moves**: Rename detection is intentionally not performed. Moved files are aggregated as deletions at the source path and additions at the destination path.
+- **Untracked Files**: When analyzing uncommitted changes in the working tree, untracked files are excluded. Only tracked files with staged or unstaged modifications are included.
+- **Zero-Diff Behavior**: When no changes exist:
+  - **Table**: Prints table headers and a `TOTAL` row with all zeroes.
+  - **JSON**: Outputs `"summary"` with all zeroes and `"entries": []` (empty array).
+  - **CSV / TSV**: Emits only the column header line without data rows.
+
+---
+
 ## Output Examples
 
 ### Table Output (Default)
@@ -228,11 +268,13 @@ cmd/,3,354,30,324
 
 ## Exit Codes
 
-| Code | Name | Description |
+All error messages are written to standard error (`stderr`).
+
+| Code | Category | Description |
 | :---: | :--- | :--- |
-| `0` | **Success** | Operation completed successfully. |
-| `1` | **Runtime Error** | Git error, repository not found, uncommitted or revision lookup failure. |
-| `2` | **Input Error** | Invalid flags, incompatible arguments, or depth $< 1$. |
+| `0` | **Success** | Operation completed successfully (including zero diffs found). |
+| `1` | **Git / Runtime Error** | `.git` repository not found, empty repository without commits, unresolvable commit/branch/tag ref, invalid commit hash, or no common ancestor found in three-dot range (`...`). |
+| `2` | **User Input Error** | Unrecognized flags, `--depth < 1`, invalid `--sort` or `--format` values, conflicting `-t` and `-- <target-path>`, malformed range syntax, or combining range notation with extra commit arguments. |
 
 ---
 

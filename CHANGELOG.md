@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - New `pkg/filter` package providing early pre-filtering for target boundaries and `doublestar` glob exclusions, skipping expensive Myers diff computations for out-of-scope files.
 - Comprehensive architectural documentation for memory optimization in `docs/memory-optimization-architecture.md`.
 - Expanded test coverage for streaming diff extraction, active working tree states, and binary file detection.
+- Documented complete external CLI specifications in `README.md`, including revision syntax, range resolution, deterministic tie-breaking, zero-diff behaviors, and detailed exit code conditions.
 
 ### Fixed
 - Synchronized `README.md` output examples (Table, JSON, CSV) with `git-dirstat-spec.md` and actual CLI formatting schemas.
