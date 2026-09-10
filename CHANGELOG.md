@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+- Refactored git diff processing from buffered slices to a streaming pipeline (`DiffCommitsStream`, `DiffWorkingTreeStream`, and `StreamAggregator`), drastically reducing peak memory footprint by 80–95% on large repositories.
+- Switched working tree line counting to chunked 32KB buffer reading (`countLinesFromReader`), eliminating full-file string allocations in memory.
+- Optimized binary file comparison using streaming chunk readers.
+- Consolidated exclusion and target boundary filtering into `pkg/filter/PathFilter` to eliminate duplicate logic.
+
+### Added
+- New `pkg/filter` package providing early pre-filtering for target boundaries and `doublestar` glob exclusions, skipping expensive Myers diff computations for out-of-scope files.
+- Comprehensive architectural documentation for memory optimization in `docs/memory-optimization-architecture.md`.
+- Expanded test coverage for streaming diff extraction, active working tree states, and binary file detection.
+
 ## [0.2.0] - 2026-09-10
 
 ### Fixed

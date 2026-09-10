@@ -200,3 +200,51 @@ func TestSortingMoreFields(t *testing.T) {
 		t.Errorf("SortDeleted failed: %v", entries)
 	}
 }
+
+func TestStreamAggregatorDirect(t *testing.T) {
+	opts := AggregatorOptions{
+		RepoRoot:   "/repo",
+		Cwd:        "/repo",
+		TargetPath: "pkg/",
+		Depth:      1,
+		Sort:       model.SortAdded,
+	}
+
+	agg, err := NewStreamAggregator(opts)
+	if err != nil {
+		t.Fatalf("failed to create StreamAggregator: %v", err)
+	}
+
+	pf := agg.PathFilter()
+	if pf == nil || pf.TargetPrefix() != "pkg/" {
+		t.Fatalf("expected PathFilter with prefix 'pkg/', got %v", pf)
+	}
+
+	diffs := []model.FileDiff{
+		{Path: "pkg/a/file1.go", Added: 10, Deleted: 2},
+		{Path: "pkg/b/file2.go", Added: 20, Deleted: 5},
+		{Path: "pkg/root.go", Added: 5, Deleted: 1},
+	}
+
+	for _, d := range diffs {
+		if err := agg.Consume(d); err != nil {
+			t.Fatalf("Consume failed: %v", err)
+		}
+	}
+
+	report, err := agg.Result()
+	if err != nil {
+		t.Fatalf("Result failed: %v", err)
+	}
+
+	if report.Summary.TotalFiles != 3 {
+		t.Errorf("expected 3 total files, got %d", report.Summary.TotalFiles)
+	}
+	if report.Summary.TotalAdded != 35 {
+		t.Errorf("expected 35 total added, got %d", report.Summary.TotalAdded)
+	}
+	if len(report.Entries) != 3 {
+		t.Fatalf("expected 3 entries, got %d", len(report.Entries))
+	}
+}
+

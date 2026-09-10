@@ -29,8 +29,9 @@ flowchart TD
     subgraph Core Engine Pipeline
         GitRepo[pkg/gitutil/repo.go: Repository discovery & validation]
         GitResolve[pkg/gitutil/resolver.go: Revision & merge-base resolution]
-        GitDiff[pkg/gitutil/diff.go: Commit & working tree diff extraction]
-        Aggregator[pkg/aggregator/aggregator.go: Normalization, exclusion, depth slicing & sorting]
+        PathFilter[pkg/filter/filter.go: Pre-filtering target & exclude patterns]
+        GitDiff[pkg/gitutil/diff.go: Streaming commit & working tree diff extraction]
+        Aggregator[pkg/aggregator/aggregator.go: StreamAggregator bucket aggregation & sorting]
     end
 
     subgraph Presentation Layer
@@ -47,8 +48,11 @@ flowchart TD
     CmdRoot --> CmdArgs
     CmdRoot --> GitRepo
     GitRepo --> GitResolve
+    CmdRoot --> Aggregator
+    Aggregator --> PathFilter
+    PathFilter -.-> GitDiff
     GitResolve --> GitDiff
-    GitDiff --> Aggregator
+    GitDiff -->|Stream callback: FileDiff| Aggregator
     Aggregator --> FmtTable
     Aggregator --> FmtJSON
     Aggregator --> FmtDelimited
@@ -71,10 +75,13 @@ flowchart TD
        ▼ (gitutil.ResolveCommits)
 [ResolvedCommits: baseCommit, toCommit, isWorkingTree]
        │
-       ▼ (gitutil.DiffCommits / DiffWorkingTree)
-[[]model.FileDiff: Path, Added, Deleted, IsBinary]
+       ▼ (aggregator.NewStreamAggregator & PathFilter)
+[filter.PathFilter: TargetPrefix, ExcludePatterns]
        │
-       ▼ (aggregator.Aggregate)
+       ▼ (gitutil.DiffCommitsStream / DiffWorkingTreeStream with Pre-Filter)
+[Stream callback: model.FileDiff (individual patch GC)]
+       │
+       ▼ (aggregator.Consume on-the-fly)
 [model.Report: Target, Depth, Summary, []Entry]
        │
        ▼ (formatter.Format)
@@ -109,7 +116,15 @@ flowchart TD
   - `Report`: Top-level report containing target, depth, summary, and entries.
   - `ExitCodeError`: Carries integer exit codes (`1` or `2`) conforming to Go's `error` interface.
 
-### 3.3 `pkg/gitutil` Package (Git Engine)
+### 3.3 `pkg/filter` Package (Pre-filtering)
+- **Responsibilities**: Provides fast target boundary matching and `doublestar/v4` glob exclusion checks used by the git engine to skip unneeded diff computations.
+- **Key Modules**:
+  - `filter.go`:
+    - `PathFilter`: Evaluates target directory prefix and exclusion patterns.
+    - `ShouldProcess(path)`: Evaluates single path inclusion.
+    - `ShouldProcessChange(from, to)`: Evaluates change pairs, safely handling file moves/renames across target boundaries.
+
+### 3.4 `pkg/gitutil` Package (Git Engine)
 - **Responsibilities**: Interacts with Git repositories via `go-git/v5` without spawning external processes.
 - **Key Modules**:
   - `repo.go`:
@@ -119,21 +134,19 @@ flowchart TD
     - Resolves revisions (short/full SHA hashes, tags, branches, `HEAD~n`) via `repo.ResolveRevision()`.
     - Computes merge bases for three-dot ranges (`...`) using `c1.MergeBase(c2)`. If no common ancestor exists, fails with Exit Code 1.
   - `diff.go`:
-    - `DiffCommits(fromCommit, toCommit)`: Computes tree diffs using `object.DiffTree` and generates patches.
-    - Counts line additions and deletions by scanning chunk newlines.
-    - Binary files: Accurately detected and assigned `Files: 1, Added: 0, Deleted: 0, Net: 0`.
-    - Rename/Move detection: Not executed (`changes.DetectRenames` omitted), naturally representing moved files as deletion at source and addition at destination.
-    - `DiffWorkingTree(repo, headCommit, repoRoot)`: Traverses `wt.Status()`. Aggregates staged and unstaged modifications against `HEAD`. Explicitly filters out untracked files (`?`). Ensures safe closing of file readers to eliminate file descriptor leaks.
+    - `DiffCommitsStream(fromCommit, toCommit, filter, consumer)`: Streams tree diffs. Evaluates pre-filtering per file before calling `change.Patch()`, completely eliminating bulk memory spikes. Patches are processed and garbage collected one by one.
+    - `DiffWorkingTreeStream(repo, headCommit, repoRoot, filter, consumer)`: Traverses `wt.Status()`. Employs chunked buffer streaming (`countLinesFromReader`) for new/deleted files, and stream comparison for binary files, preventing large file allocations.
+    - Backward-compatible wrappers `DiffCommits` and `DiffWorkingTree` retain support for legacy buffered consumers.
 
-### 3.4 `pkg/aggregator` Package (Aggregation & Filtering)
-- **Responsibilities**: Transforms raw file diffs into grouped, normalized, and deterministically sorted bucket entries.
+### 3.5 `pkg/aggregator` Package (Streaming Aggregation & Filtering)
+- **Responsibilities**: Transforms streaming file diffs into grouped, normalized, and deterministically sorted bucket entries.
 - **Key Capabilities**:
+  - **Streaming Accumulator (`StreamAggregator`)**:
+    - Accumulates metrics on-the-fly via `Consume(model.FileDiff)` with $O(D)$ memory complexity ($D$ = number of unique directory buckets).
+    - Backward-compatible `Aggregate(diffs, opts)` delegates to `StreamAggregator`.
   - **Target Normalization & Boundary Check (`NormalizeTarget`)**:
     - Converts CWD-relative target paths to clean repository-root-relative paths.
     - Discards files outside the target path boundary before aggregation.
-  - **Pattern Exclusion (`isExcluded`)**:
-    - Applies `doublestar/v4` glob matching against repository-root-relative paths (e.g., `vendor/**`, `*.lock`).
-    - Matches filename basenames when patterns do not contain path separators.
   - **Depth Slicing & Root File Handling (`getBucketKey`)**:
     - Splits paths relative to target by `/`.
     - Files located directly inside the target directory without subdirectories are grouped into root files (`is_root: true`).
@@ -146,7 +159,7 @@ flowchart TD
     - Enforces ascending alphabetical tie-breaking on `path`.
     - Reverses order when `--reverse` (`-r`) is active.
 
-### 3.5 `pkg/formatter` Package (Presentation)
+### 3.6 `pkg/formatter` Package (Presentation)
 - **Responsibilities**: Renders `model.Report` into target output formats implementing the `Formatter` interface.
 - **Key Modules**:
   - `table.go`:

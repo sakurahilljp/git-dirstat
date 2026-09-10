@@ -51,19 +51,8 @@ func NewRootCommand() *cobra.Command {
 				return err
 			}
 
-			// 3. Diff
-			var diffs []model.FileDiff
-			if resolved.IsWorkingTree {
-				diffs, err = gitutil.DiffWorkingTree(repoCtx.Repo, resolved.HeadCommit, repoCtx.RepoRoot)
-			} else {
-				diffs, err = gitutil.DiffCommits(resolved.FromCommit, resolved.ToCommit)
-			}
-			if err != nil {
-				return err
-			}
-
-			// 4. Aggregate
-			report, err := aggregator.Aggregate(diffs, aggregator.AggregatorOptions{
+			// 3. Setup Stream Aggregator & Pre-filter
+			agg, err := aggregator.NewStreamAggregator(aggregator.AggregatorOptions{
 				RepoRoot:   repoCtx.RepoRoot,
 				Cwd:        cwd,
 				TargetPath: cfg.TargetPath,
@@ -72,6 +61,23 @@ func NewRootCommand() *cobra.Command {
 				Reverse:    cfg.Reverse,
 				Exclude:    cfg.Exclude,
 			})
+			if err != nil {
+				return err
+			}
+
+			pathFilter := agg.PathFilter()
+
+			// 4. Stream Diff & Aggregate
+			if resolved.IsWorkingTree {
+				err = gitutil.DiffWorkingTreeStream(repoCtx.Repo, resolved.HeadCommit, repoCtx.RepoRoot, pathFilter, agg.Consume)
+			} else {
+				err = gitutil.DiffCommitsStream(resolved.FromCommit, resolved.ToCommit, pathFilter, agg.Consume)
+			}
+			if err != nil {
+				return err
+			}
+
+			report, err := agg.Result()
 			if err != nil {
 				return err
 			}
