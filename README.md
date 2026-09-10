@@ -163,15 +163,15 @@ git-dirstat -f tsv > stats.tsv
 ### Table Output (Default)
 
 ```text
-  DIRECTORY                    FILES    + ADDED    - DELETED        NET  
-─────────────────────────────────────────────────────────────────────────
-  cmd/                             3        354            0       +354  
-  pkg/aggregator/                  2        444            0       +444  
-  pkg/formatter/                   5        448            0       +448  
-  pkg/gitutil/                     4        704            0       +704  
-  (root files)                     5         68            0        +68  
-─────────────────────────────────────────────────────────────────────────
-  TOTAL                           19      2,018            0     +2,018  
+Target: . (Depth: 1)
+
+Directory                         Files       Added     Deleted          Net
+----------------------------------------------------------------------------
+pkg/                                  4         704          90         +614
+cmd/                                  3         354          30         +324
+(root files)                          5          68          10          +58
+----------------------------------------------------------------------------
+TOTAL                                12        1126         130         +996
 ```
 
 ### JSON Output (`-f json`)
@@ -180,39 +180,48 @@ git-dirstat -f tsv > stats.tsv
 {
   "target": ".",
   "depth": 1,
-  "directories": [
+  "summary": {
+    "total_files": 12,
+    "total_added": 1126,
+    "total_deleted": 130,
+    "net": 996
+  },
+  "entries": [
     {
-      "path": "pkg/gitutil",
+      "path": "pkg/",
+      "is_root": false,
       "files": 4,
-      "insertions": 704,
-      "deletions": 0,
-      "net": 704,
-      "is_root": false
+      "added": 704,
+      "deleted": 90,
+      "net": 614
     },
     {
-      "path": "(root files)",
+      "path": "cmd/",
+      "is_root": false,
+      "files": 3,
+      "added": 354,
+      "deleted": 30,
+      "net": 324
+    },
+    {
+      "path": ".",
+      "is_root": true,
       "files": 5,
-      "insertions": 68,
-      "deletions": 0,
-      "net": 68,
-      "is_root": true
+      "added": 68,
+      "deleted": 10,
+      "net": 58
     }
-  ],
-  "total": {
-    "files": 19,
-    "insertions": 2018,
-    "deletions": 0,
-    "net": 2018
-  }
+  ]
 }
 ```
 
 ### CSV Output (`-f csv`)
 
 ```csv
-directory,files,insertions,deletions,net
-pkg/gitutil/,4,704,0,704
-(root files),5,68,0,68
+path,files,added,deleted,net
+pkg/,4,704,90,614
+cmd/,3,354,30,324
+(root files),5,68,10,58
 ```
 
 ---

@@ -185,8 +185,9 @@ sequenceDiagram
     actor User
     participant Main as main.go
     participant Cmd as cmd/root & args
+    participant Agg as pkg/aggregator (StreamAggregator)
+    participant Fltr as pkg/filter (PathFilter)
     participant Git as pkg/gitutil
-    participant Agg as pkg/aggregator
     participant Fmt as pkg/formatter
 
     User->>Main: Execute git-dirstat [OPTIONS] [ARGS]
@@ -209,17 +210,31 @@ sequenceDiagram
         Main->>User: Output to stderr & os.Exit(1)
     end
 
-    alt Zero Arguments (Working Tree vs HEAD)
-        Cmd->>Git: DiffWorkingTree(headCommit)
-    else 1-2 Commit Arguments (Commit vs Commit)
-        Cmd->>Git: DiffCommits(fromCommit, toCommit)
-    end
-    Git-->>Cmd: []model.FileDiff
+    Cmd->>Agg: NewStreamAggregator(opts)
+    Agg->>Fltr: NewPathFilter(targetPrefix, exclude)
+    Cmd->>Agg: agg.PathFilter()
+    Agg-->>Cmd: pathFilter
 
-    Cmd->>Agg: Aggregate(diffs, opts)
-    Agg->>Agg: Target Boundary & doublestar Exclusion
-    Agg->>Agg: Depth Slicing & Root File Bucketization
-    Agg->>Agg: Metrics Accumulation & Deterministic Sorting
+    alt Zero Arguments (Working Tree vs HEAD)
+        Cmd->>Git: DiffWorkingTreeStream(headCommit, pathFilter, agg.Consume)
+    else 1-2 Commit Arguments (Commit vs Commit)
+        Cmd->>Git: DiffCommitsStream(fromCommit, toCommit, pathFilter, agg.Consume)
+    end
+
+    loop For each changed file
+        Git->>Fltr: ShouldProcessChange(from, to)
+        alt Out of Target or Excluded
+            Git->>Git: Skip patch computation (0 diff CPU/RAM)
+        else Relevant File
+            Git->>Git: Compute single file patch / stream count lines
+            Git->>Agg: consumer(model.FileDiff) (immediate patch GC)
+            Agg->>Agg: Bucket metrics accumulation
+        end
+    end
+    Git-->>Cmd: nil (Success)
+
+    Cmd->>Agg: agg.Result()
+    Agg->>Agg: Sort entries & calculate summary
     Agg-->>Cmd: model.Report
 
     Cmd->>Fmt: Format(stdout, report)

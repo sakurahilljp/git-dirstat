@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive architectural documentation for memory optimization in `docs/memory-optimization-architecture.md`.
 - Expanded test coverage for streaming diff extraction, active working tree states, and binary file detection.
 
+### Fixed
+- Synchronized `README.md` output examples (Table, JSON, CSV) with `git-dirstat-spec.md` and actual CLI formatting schemas.
+- Updated end-to-end execution sequence diagram in `docs/software-design.md` to accurately reflect the streaming pipeline.
+
 ## [0.2.0] - 2026-09-10
 
 ### Fixed

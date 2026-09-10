@@ -59,7 +59,7 @@ flowchart TD
   - 対象ファイルのみ `change.Patch()` を個別に生成し、チャンク走査後すぐに参照が外れるため、次ループで即座に GC 対象となります。
 - **`DiffWorkingTreeStream`**:
   - `wt.Status()` のループ先頭で `pathFilter.ShouldProcess` を評価し、対象外ファイルに対する `os.Stat` や HEAD オブジェクト取得を完全抑止。
-  - **行数カウントのストリーミング化 (`countLinesFromReader`)**: 32KB 固定バッファを用いてバイト単位で `\n` を走査。ファイルをメモリ全体に展開することなく行数を取得。
+  - **行数カウントのストリーミング化 (`countLinesFromReader`)**: 新規追加（Added）および削除（Deleted）ファイルに対して 32KB 固定バッファを用いてバイト単位で `\n` を走査。ファイルをメモリ全体に展開することなく行数を取得。※変更（Modified）テキストファイルは行単位差分を算出するため両方のテキストを読み込みますが、サイズ不一致・早期同一性判定により無駄な差分計算を防止。
   - **バイナリ比較の省メモリ化 (`compareBinaryFiles`)**: まずファイルサイズ（`FileInfo.Size` vs `headFile.Size`）で高速不一致判定を行い、サイズ一致時のみ 8KB バッファでストリーミング逐次比較を実施。巨大なバイナリファイルでもメモリを消費しません。
 - **後方互換性**: 既存の `DiffCommits` および `DiffWorkingTree` は、`DiffCommitsStream` / `DiffWorkingTreeStream` のラッパーとして維持。
 
