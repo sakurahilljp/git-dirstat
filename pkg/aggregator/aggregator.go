@@ -197,8 +197,9 @@ func NormalizeTarget(repoRoot, cwd, target string) (normTarget, displayTarget st
 }
 
 func getBucketKey(targetPrefix, relPath string, depth int) (bucketKey string, isRoot bool) {
-	relDir, _ := path.Split(relPath)
-	if relDir == "" {
+	cleanPath := path.Clean(relPath)
+	dir := path.Dir(cleanPath)
+	if dir == "." || dir == "/" || dir == "" {
 		// Root file directly under target
 		if targetPrefix == "" {
 			return ".", true
@@ -206,17 +207,24 @@ func getBucketKey(targetPrefix, relPath string, depth int) (bucketKey string, is
 		return targetPrefix, true
 	}
 
-	// Subdirectory file
-	relDir = strings.TrimSuffix(relDir, "/")
-	segments := strings.Split(relDir, "/")
+	// Extract path segments up to depth using standard path functions
+	var segments []string
+	curr := dir
+	for curr != "." && curr != "/" && curr != "" {
+		segments = append([]string{path.Base(curr)}, segments...)
+		curr = path.Dir(curr)
+	}
 
 	depthCount := depth
 	if len(segments) < depthCount {
 		depthCount = len(segments)
 	}
 
-	slicedRelDir := strings.Join(segments[:depthCount], "/") + "/"
-	return targetPrefix + slicedRelDir, false
+	slicedRelDir := path.Join(segments[:depthCount]...) + "/"
+	if targetPrefix != "" {
+		return targetPrefix + slicedRelDir, false
+	}
+	return slicedRelDir, false
 }
 
 func sortEntries(entries []model.Entry, sortField string) {

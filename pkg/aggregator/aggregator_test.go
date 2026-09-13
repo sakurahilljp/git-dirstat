@@ -247,3 +247,81 @@ func TestStreamAggregatorDirect(t *testing.T) {
 		t.Fatalf("expected 3 entries, got %d", len(report.Entries))
 	}
 }
+
+func TestGetBucketKey(t *testing.T) {
+	tests := []struct {
+		name         string
+		targetPrefix string
+		relPath      string
+		depth        int
+		wantKey      string
+		wantIsRoot   bool
+	}{
+		{
+			name:         "root file in root repo",
+			targetPrefix: "",
+			relPath:      "main.go",
+			depth:        1,
+			wantKey:      ".",
+			wantIsRoot:   true,
+		},
+		{
+			name:         "root file under target prefix",
+			targetPrefix: "src/",
+			relPath:      "main.go",
+			depth:        1,
+			wantKey:      "src/",
+			wantIsRoot:   true,
+		},
+		{
+			name:         "single directory depth 1",
+			targetPrefix: "",
+			relPath:      "pkg/aggregator/aggregator.go",
+			depth:        1,
+			wantKey:      "pkg/",
+			wantIsRoot:   false,
+		},
+		{
+			name:         "depth 2 under root",
+			targetPrefix: "",
+			relPath:      "pkg/aggregator/aggregator.go",
+			depth:        2,
+			wantKey:      "pkg/aggregator/",
+			wantIsRoot:   false,
+		},
+		{
+			name:         "depth 2 under target prefix",
+			targetPrefix: "cmd/",
+			relPath:      "sub/deep/main.go",
+			depth:        2,
+			wantKey:      "cmd/sub/deep/",
+			wantIsRoot:   false,
+		},
+		{
+			name:         "redundant slashes handled cleanly",
+			targetPrefix: "",
+			relPath:      "pkg///sub//file.go",
+			depth:        2,
+			wantKey:      "pkg/sub/",
+			wantIsRoot:   false,
+		},
+		{
+			name:         "depth exceeds directory count",
+			targetPrefix: "src/",
+			relPath:      "a/file.go",
+			depth:        5,
+			wantKey:      "src/a/",
+			wantIsRoot:   false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotKey, gotIsRoot := getBucketKey(tt.targetPrefix, tt.relPath, tt.depth)
+			if gotKey != tt.wantKey || gotIsRoot != tt.wantIsRoot {
+				t.Errorf("getBucketKey(%q, %q, %d) = (%q, %v), want (%q, %v)",
+					tt.targetPrefix, tt.relPath, tt.depth, gotKey, gotIsRoot, tt.wantKey, tt.wantIsRoot)
+			}
+		})
+	}
+}
