@@ -288,5 +288,37 @@ func TestE2E_Comprehensive(t *testing.T) {
 			t.Errorf("expected 1 file with 1 insertion, got %+v", report.Summary)
 		}
 	})
-}
 
+	t.Run("exclude_from_file", func(t *testing.T) {
+		ignoreFile := filepath.Join(dir, ".dirstatignore")
+		ignoreContent := "# Ignore patterns\nsrc/components/**\n\n# Another comment\n"
+		if err := os.WriteFile(ignoreFile, []byte(ignoreContent), 0644); err != nil {
+			t.Fatalf("failed to write ignore file: %v", err)
+		}
+		defer os.Remove(ignoreFile)
+
+		// Compare c1..feature with --exclude-from .dirstatignore
+		out, err := runCmdInDir(dir, c1.String()[:7]+"..feature", "--exclude-from", ".dirstatignore", "-f", "json")
+		if err != nil {
+			t.Fatalf("runCmdInDir failed: %v", err)
+		}
+
+		var report model.Report
+		if err := json.Unmarshal([]byte(out), &report); err != nil {
+			t.Fatalf("failed to unmarshal JSON: %v, output: %s", err, out)
+		}
+
+		// src/components/button.tsx should be excluded
+		for _, e := range report.Entries {
+			if strings.HasPrefix(e.Path, "src/components") {
+				t.Errorf("expected src/components to be excluded, but found entry: %+v", e)
+			}
+		}
+
+		// Test non-existent file produces error
+		_, err = runCmdInDir(dir, "--exclude-from", "non_existent_ignore_file")
+		if err == nil {
+			t.Errorf("expected error for non-existent exclude-from file, got nil")
+		}
+	})
+}

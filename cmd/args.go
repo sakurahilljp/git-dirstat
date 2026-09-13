@@ -3,6 +3,7 @@ package cmd
 import (
 	"strings"
 
+	"github.com/sakurahilljp/git-dirstat/pkg/filter"
 	"github.com/sakurahilljp/git-dirstat/pkg/model"
 	"github.com/spf13/cobra"
 )
@@ -41,6 +42,18 @@ func ParseAndValidate(cmd *cobra.Command, args []string) (*model.Config, error) 
 	reverse, _ := cmd.Flags().GetBool("reverse")
 	noColor, _ := cmd.Flags().GetBool("no-color")
 	exclude, _ := cmd.Flags().GetStringArray("exclude")
+	excludeFrom, _ := cmd.Flags().GetStringArray("exclude-from")
+	excludeFile, _ := cmd.Flags().GetStringArray("exclude-file")
+
+	allExcludeFiles := append(excludeFrom, excludeFile...)
+	for _, ef := range allExcludeFiles {
+		patterns, err := filter.LoadPatternsFromFile(ef)
+		if err != nil {
+			return nil, model.NewInputError("failed to read exclude file %q: %w", ef, err)
+		}
+		exclude = append(exclude, patterns...)
+	}
+
 	flagTarget, _ := cmd.Flags().GetString("target")
 	targetChanged := cmd.Flags().Changed("target")
 

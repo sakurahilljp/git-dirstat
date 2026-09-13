@@ -53,9 +53,9 @@ func TestDiffCommitsStream_WithPreFilter(t *testing.T) {
 
 func TestCountLinesFromReader(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   string
-		want    int
+		name  string
+		input string
+		want  int
 	}{
 		{"empty", "", 0},
 		{"single line with newline", "line1\n", 1},

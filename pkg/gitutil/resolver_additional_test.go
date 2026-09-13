@@ -1,9 +1,9 @@
 package gitutil
 
 import (
+	"github.com/sakurahilljp/git-dirstat/pkg/model"
 	"os"
 	"testing"
-	"github.com/sakurahilljp/git-dirstat/pkg/model"
 )
 
 func TestResolveCommits_AdditionalSpecs(t *testing.T) {
@@ -56,8 +56,8 @@ func TestResolveCommits_AdditionalSpecs(t *testing.T) {
 	if err == nil {
 		t.Errorf("expected error for invalid from commit")
 	}
-    
-    // TwoDot invalid to
+
+	// TwoDot invalid to
 	_, err = ResolveCommits(repo, model.CommitOptions{
 		SpecType:   model.CommitSpecTwoDot,
 		FromCommit: c1.String()[:7],

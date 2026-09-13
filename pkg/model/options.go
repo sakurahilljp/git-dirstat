@@ -3,11 +3,11 @@ package model
 type CommitSpecType int
 
 const (
-	CommitSpecWorkingTree CommitSpecType = iota // 0 commit args: Working tree vs HEAD
-	CommitSpecCommitToHead                      // 1 commit arg: <commit> vs HEAD
-	CommitSpecTwoDot                            // 1 commit arg: <c1>..<c2>
-	CommitSpecThreeDot                          // 1 commit arg: <c1>...<c2>
-	CommitSpecTwoCommits                        // 2 commit args: <c1> <c2>
+	CommitSpecWorkingTree  CommitSpecType = iota // 0 commit args: Working tree vs HEAD
+	CommitSpecCommitToHead                       // 1 commit arg: <commit> vs HEAD
+	CommitSpecTwoDot                             // 1 commit arg: <c1>..<c2>
+	CommitSpecThreeDot                           // 1 commit arg: <c1>...<c2>
+	CommitSpecTwoCommits                         // 2 commit args: <c1> <c2>
 )
 
 // CommitOptions represents the parsed commit comparison specifications.

@@ -351,4 +351,3 @@ func TestOpenRepository_Worktree(t *testing.T) {
 		t.Errorf("expected HEAD hash %v, got %v", headRef.Hash(), head.Hash())
 	}
 }
-

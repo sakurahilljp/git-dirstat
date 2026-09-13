@@ -22,7 +22,7 @@ func TestDiffWorkingTreeStream_AllStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to get head: %v", err)
 	}
-	
+
 	wt, err := repo.Worktree()
 	if err != nil {
 		t.Fatalf("failed to get wt: %v", err)
@@ -30,17 +30,17 @@ func TestDiffWorkingTreeStream_AllStatus(t *testing.T) {
 
 	// modify unstaged
 	os.WriteFile(filepath.Join(dir, "modified.txt"), []byte("line1\nline2\nline3\n"), 0644)
-	
+
 	// modify staged
 	os.WriteFile(filepath.Join(dir, "modified_staged.txt"), []byte("line1\nline2\nline3\n"), 0644)
 	wt.Add("modified_staged.txt")
 
 	// delete
 	os.Remove(filepath.Join(dir, "deleted.txt"))
-	
+
 	// untracked (should be ignored by our logic)
 	os.WriteFile(filepath.Join(dir, "untracked.txt"), []byte("line1\n"), 0644)
-	
+
 	// added to index
 	os.WriteFile(filepath.Join(dir, "added.txt"), []byte("line1\nline2\n"), 0644)
 	wt.Add("added.txt")
@@ -88,8 +88,16 @@ func TestDiffWorkingTreeStream_AllStatus(t *testing.T) {
 		}
 	}
 
-	if !foundModified { t.Errorf("modified.txt not found in diffs") }
-	if !foundModifiedStaged { t.Errorf("modified_staged.txt not found in diffs") }
-	if !foundAdded { t.Errorf("added.txt not found in diffs") }
-	if !foundDeleted { t.Errorf("deleted.txt not found in diffs") }
+	if !foundModified {
+		t.Errorf("modified.txt not found in diffs")
+	}
+	if !foundModifiedStaged {
+		t.Errorf("modified_staged.txt not found in diffs")
+	}
+	if !foundAdded {
+		t.Errorf("added.txt not found in diffs")
+	}
+	if !foundDeleted {
+		t.Errorf("deleted.txt not found in diffs")
+	}
 }

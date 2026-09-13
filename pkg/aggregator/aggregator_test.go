@@ -13,9 +13,9 @@ func TestAggregator(t *testing.T) {
 		{Path: "src/components/button/button.test.tsx", Added: 50, Deleted: 5},
 		{Path: "src/components/modal/index.tsx", Added: 80, Deleted: 10},
 		{Path: "src/services/api.ts", Added: 200, Deleted: 50},
-		{Path: "src/index.ts", Added: 30, Deleted: 5},       // root file under src/
-		{Path: "README.md", Added: 10, Deleted: 2},          // outside src/
-		{Path: "src/vendor/lib.js", Added: 1000, Deleted: 0}, // excluded
+		{Path: "src/index.ts", Added: 30, Deleted: 5},                 // root file under src/
+		{Path: "README.md", Added: 10, Deleted: 2},                    // outside src/
+		{Path: "src/vendor/lib.js", Added: 1000, Deleted: 0},          // excluded
 		{Path: "src/image.png", Added: 0, Deleted: 0, IsBinary: true}, // binary root file under src/
 	}
 
@@ -247,4 +247,3 @@ func TestStreamAggregatorDirect(t *testing.T) {
 		t.Fatalf("expected 3 entries, got %d", len(report.Entries))
 	}
 }
-

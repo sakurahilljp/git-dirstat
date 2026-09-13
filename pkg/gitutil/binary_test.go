@@ -8,13 +8,13 @@ import (
 
 func TestIsFileBinary(t *testing.T) {
 	dir := t.TempDir()
-	
+
 	textFile := filepath.Join(dir, "text.txt")
 	os.WriteFile(textFile, []byte("hello world\n"), 0644)
-	
+
 	binFile := filepath.Join(dir, "bin.dat")
 	os.WriteFile(binFile, append([]byte("hello"), 0, 0, 0), 0644)
-	
+
 	emptyFile := filepath.Join(dir, "empty.txt")
 	os.WriteFile(emptyFile, []byte(""), 0644)
 

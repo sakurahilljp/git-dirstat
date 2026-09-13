@@ -22,9 +22,9 @@ func NewRootCommand() *cobra.Command {
 	var noColorFlag bool
 
 	rootCmd := &cobra.Command{
-		Use:   "git-dirstat [OPTIONS] [<commit> [<commit>] | <commit>..<commit> | <commit>...<commit>] [-- <target-path>]",
-		Short: "git-dirstat aggregates git changes by directory",
-		Long:  `git-dirstat inspects changes between commits or working tree in a Git repository and aggregates modifications by directory.`,
+		Use:           "git-dirstat [OPTIONS] [<commit> [<commit>] | <commit>..<commit> | <commit>...<commit>] [-- <target-path>]",
+		Short:         "git-dirstat aggregates git changes by directory",
+		Long:          `git-dirstat inspects changes between commits or working tree in a Git repository and aggregates modifications by directory.`,
 		Version:       Version,
 		SilenceErrors: true,
 		SilenceUsage:  true,
@@ -107,6 +107,8 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.Flags().BoolVarP(&reverseFlag, "reverse", "r", false, "Sort in ascending order (default: descending)")
 	rootCmd.Flags().StringVarP(&formatFlag, "format", "f", "table", "Output format: table, json, csv, tsv")
 	rootCmd.Flags().StringArrayP("exclude", "e", []string{}, "File/path patterns to exclude (doublestar ** format)")
+	rootCmd.Flags().StringArray("exclude-from", []string{}, "File containing patterns to exclude (one per line, # for comments)")
+	rootCmd.Flags().StringArray("exclude-file", []string{}, "Alias for --exclude-from")
 	rootCmd.Flags().BoolVar(&noColorFlag, "no-color", false, "Suppress ANSI color escapes")
 
 	return rootCmd

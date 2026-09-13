@@ -2,9 +2,9 @@ package formatter
 
 import (
 	"bytes"
+	"github.com/sakurahilljp/git-dirstat/pkg/model"
 	"os"
 	"testing"
-	"github.com/sakurahilljp/git-dirstat/pkg/model"
 )
 
 func TestTableFormatter_Colors(t *testing.T) {

@@ -63,6 +63,7 @@ git-dirstat [OPTIONS] [-t <target-path>] [<commit> [<commit>] | <commit>..<commi
 | `--reverse` | `-r` | `false` | bool | Sort in ascending order (default: descending) |
 | `--format` | `-f` | `table` | string | Output format: `table`, `json`, `csv`, `tsv` |
 | `--exclude` | `-e` | None | []string | File/path patterns to exclude (doublestar `**` format, multi-value allowed) |
+| `--exclude-from` | | None | []string | Read exclusion patterns from file(s) (one pattern per line, alias: `--exclude-file`) |
 | `--no-color` | | `false` | bool | Suppress ANSI color escapes (auto-disabled if stdout is non-TTY) |
 | `--version` | `-v` | - | - | Print version information and exit |
 | `--help` | `-h` | - | - | Print command usage instructions and exit |
@@ -91,7 +92,10 @@ git-dirstat [OPTIONS] [-t <target-path>] [<commit> [<commit>] | <commit>..<commi
 ### 5.2 Target Filtering & Exclusions
 
 * Evaluate each file path against normalized `--target`. Files outside the base directory boundary are discarded prior to aggregation.
-* Apply exclusions based on provided `--exclude` patterns using `doublestar` matching against repository-root-relative paths (e.g. `vendor/**`, `*.lock`).
+* Apply exclusions based on provided `--exclude` patterns and/or pattern files passed via `--exclude-from` (alias `--exclude-file`).
+  * Matching is performed using `doublestar` against repository-root-relative paths (e.g. `vendor/**`, `*.lock`).
+  * In pattern files, each line contains one pattern. Empty lines and comment lines (starting with `#`) are ignored. Leading and trailing whitespace is stripped.
+  * Multiple files and CLI flags can be specified together; their patterns are merged.
 
 ### 5.3 Relative Pathing & Depth Aggregation
 
@@ -248,7 +252,7 @@ All errors are reported to `stderr`.
 | --- | --- | --- |
 | `0` | Success | Operation completed successfully (including zero diffs) |
 | `1` | Git / Runtime | `.git` repository not found, repository has no commits, broken ref, invalid commit hash, or no common ancestor in `...` range |
-| `2` | User Input | Invalid argument, malformed range notation, combining range syntax with extra commits, `--depth < 1`, unrecognized flag, or conflicting `-t` and `-- <path>` |
+| `2` | User Input | Invalid argument, malformed range notation, combining range syntax with extra commits, `--depth < 1`, unrecognized flag, conflicting `-t` and `-- <path>`, or unreadable exclude pattern file specified via `--exclude-from` / `--exclude-file` |
 
 ---
 

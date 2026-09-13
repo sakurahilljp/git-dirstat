@@ -103,6 +103,7 @@ flowchart TD
     - Separates commit arguments from `-- <target-path>` using `cmd.ArgsLenAtDash()`.
     - Prohibits simultaneous specification of `-t / --target` and `-- <target-path>` (Exit Code 2).
     - Parses 0-arg, 1-arg (`<commit>`), 2-arg (`<c1> <c2>`), two-dot (`..`), and three-dot (`...`) ranges. Automatically defaults omitted sides (e.g., `..feature`, `main..`) to `HEAD`.
+    - Loads external exclude pattern files specified via `--exclude-from` / `--exclude-file` via `filter.LoadPatternsFromFile`, merging them into `Config.Exclude`. Non-existent or unreadable files fail immediately with Exit Code 2.
     - Enforces `--depth >= 1`, valid sort fields (`files`, `added`, `deleted`, `net`, `path`), and supported formats (`table`, `json`, `csv`, `tsv`).
 
 ### 3.2 `pkg/model` Package (Domain Entities)
@@ -117,12 +118,13 @@ flowchart TD
   - `ExitCodeError`: Carries integer exit codes (`1` or `2`) conforming to Go's `error` interface.
 
 ### 3.3 `pkg/filter` Package (Pre-filtering)
-- **Responsibilities**: Provides fast target boundary matching and `doublestar/v4` glob exclusion checks used by the git engine to skip unneeded diff computations.
+- **Responsibilities**: Provides fast target boundary matching and `doublestar/v4` glob exclusion checks used by the git engine to skip unneeded diff computations, as well as pattern file loading.
 - **Key Modules**:
   - `filter.go`:
     - `PathFilter`: Evaluates target directory prefix and exclusion patterns.
     - `ShouldProcess(path)`: Evaluates single path inclusion.
     - `ShouldProcessChange(from, to)`: Evaluates change pairs, safely handling file moves/renames across target boundaries.
+    - `LoadPatternsFromFile(filePath)`: Reads glob patterns from an external file line-by-line, ignoring whitespace, empty lines, and `#` comments.
 
 ### 3.4 `pkg/gitutil` Package (Git Engine)
 - **Responsibilities**: Interacts with Git repositories via `go-git/v5` without spawning external processes.

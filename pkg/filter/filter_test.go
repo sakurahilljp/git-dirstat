@@ -1,6 +1,9 @@
 package filter
 
 import (
+	"os"
+	"path/filepath"
+	"reflect"
 	"testing"
 )
 
@@ -91,5 +94,31 @@ func TestPathFilter_ShouldProcessChange(t *testing.T) {
 	var nilFilter *PathFilter
 	if !nilFilter.ShouldProcessChange("any/path", "other/path") {
 		t.Errorf("expected true for nil filter")
+	}
+}
+
+func TestLoadPatternsFromFile(t *testing.T) {
+	tempDir := t.TempDir()
+	filePath := filepath.Join(tempDir, ".testignore")
+
+	content := "# Comment line\n\n  node_modules/**  \n# Another comment\n*.log\r\n\r\nvendor/**\n"
+	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	patterns, err := LoadPatternsFromFile(filePath)
+	if err != nil {
+		t.Fatalf("LoadPatternsFromFile failed: %v", err)
+	}
+
+	expected := []string{"node_modules/**", "*.log", "vendor/**"}
+	if !reflect.DeepEqual(patterns, expected) {
+		t.Errorf("LoadPatternsFromFile got %v, want %v", patterns, expected)
+	}
+
+	// Test non-existent file
+	_, err = LoadPatternsFromFile(filepath.Join(tempDir, "non_existent"))
+	if err == nil {
+		t.Errorf("expected error for non-existent file, got nil")
 	}
 }

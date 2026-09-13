@@ -2,6 +2,9 @@ package cmd
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -19,6 +22,8 @@ func newTestCmd() *cobra.Command {
 	cmd.Flags().BoolP("reverse", "r", false, "Reverse sort")
 	cmd.Flags().StringP("format", "f", "table", "Format")
 	cmd.Flags().StringArrayP("exclude", "e", []string{}, "Exclude patterns")
+	cmd.Flags().StringArray("exclude-from", []string{}, "Exclude from file")
+	cmd.Flags().StringArray("exclude-file", []string{}, "Exclude file alias")
 	cmd.Flags().Bool("no-color", false, "No color")
 	return cmd
 }
@@ -262,5 +267,46 @@ func TestParseAndValidate_Errors(t *testing.T) {
 				t.Errorf("expected error containing %q, got %q", tt.expectedErr, err.Error())
 			}
 		})
+	}
+}
+
+func TestParseAndValidate_ExcludeFile(t *testing.T) {
+	tempDir := t.TempDir()
+	file1 := filepath.Join(tempDir, ".ignore1")
+	file2 := filepath.Join(tempDir, ".ignore2")
+
+	if err := os.WriteFile(file1, []byte("# Comments\nvendor/**\n*.log\n"), 0644); err != nil {
+		t.Fatalf("failed to write file1: %v", err)
+	}
+	if err := os.WriteFile(file2, []byte("node_modules/**\n"), 0644); err != nil {
+		t.Fatalf("failed to write file2: %v", err)
+	}
+
+	cmd := newTestCmd()
+	cmd.SetArgs([]string{"--exclude-from", file1, "--exclude-file", file2, "-e", "*.tmp"})
+	if err := cmd.ParseFlags([]string{"--exclude-from", file1, "--exclude-file", file2, "-e", "*.tmp"}); err != nil {
+		t.Fatalf("failed to parse flags: %v", err)
+	}
+
+	cfg, err := ParseAndValidate(cmd, []string{})
+	if err != nil {
+		t.Fatalf("ParseAndValidate failed: %v", err)
+	}
+
+	expectedExclude := []string{"*.tmp", "vendor/**", "*.log", "node_modules/**"}
+	if !reflect.DeepEqual(cfg.Exclude, expectedExclude) {
+		t.Errorf("got Exclude %v, want %v", cfg.Exclude, expectedExclude)
+	}
+
+	// Test non-existent file gives ExitCode 2
+	badCmd := newTestCmd()
+	_ = badCmd.ParseFlags([]string{"--exclude-from", filepath.Join(tempDir, "non_existent")})
+	_, err = ParseAndValidate(badCmd, []string{})
+	if err == nil {
+		t.Fatalf("expected error for non-existent exclude file, got nil")
+	}
+	var exitErr *model.ExitCodeError
+	if !errors.As(err, &exitErr) || exitErr.Code != 2 {
+		t.Errorf("expected ExitCodeError with code 2, got %v", err)
 	}
 }

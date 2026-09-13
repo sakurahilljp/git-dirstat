@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consolidated exclusion and target boundary filtering into `pkg/filter/PathFilter` to eliminate duplicate logic.
 
 ### Added
+- Added `--exclude-from` and `--exclude-file` CLI flags allowing users to load exclusion glob patterns from external files (e.g., `.gitignore`, `.dirstatignore`), with support for multi-value flags, blank line skipping, and `#` comments.
+- Added `pkg/filter.LoadPatternsFromFile` helper for line-by-line file pattern parsing.
 - New `pkg/filter` package providing early pre-filtering for target boundaries and `doublestar` glob exclusions, skipping expensive Myers diff computations for out-of-scope files.
 - Comprehensive architectural documentation for memory optimization in `docs/memory-optimization-architecture.md`.
 - Expanded test coverage for streaming diff extraction, active working tree states, and binary file detection.

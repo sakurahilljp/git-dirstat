@@ -19,7 +19,7 @@ Built entirely on pure Go ([go-git](https://github.com/go-git/go-git)), `git-dir
 - **Flexible Scoping & Aggregation**:
   - Hierarchical directory depth control (`--depth` / `-d`).
   - Scoped subdirectories (`--target` / `-t` or `-- <target-path>`).
-  - File/directory exclusions using standard glob patterns (`--exclude` / `-e` with `**` doublestar support).
+  - File/directory exclusions using standard glob patterns (`--exclude` / `-e`) or external pattern files (`--exclude-from` / `--exclude-file`).
   - Direct root file grouping (`(root files)` / `<target>/ (root files)`).
 - **Multiple Output Formats**:
   - **Table**: Formatted ANSI-colored CLI table with thousand separators and automatic TTY detection.
@@ -132,9 +132,16 @@ git-dirstat -d 2
 ```
 
 #### 6. Exclude Patterns
-Exclude test files, generated documentation, or vendor folders using glob patterns:
+Exclude test files, generated documentation, or vendor folders using glob patterns or pattern files:
 ```bash
+# Via command-line patterns
 git-dirstat -e "**/*_test.go" -e "docs/**" -e "vendor/**"
+
+# Via pattern file (one pattern per line, ignores blank lines and '#' comments)
+git-dirstat --exclude-from .dirstatignore
+
+# Both can be combined
+git-dirstat --exclude-file .gitignore -e "tmp/**"
 ```
 
 #### 7. Change Sorting
@@ -172,6 +179,7 @@ git-dirstat -f tsv > stats.tsv
 | `--reverse` | `-r` | `false` | Sort in ascending order instead of descending. |
 | `--format` | `-f` | `table` | Output format: `table`, `json`, `csv`, or `tsv`. |
 | `--exclude` | `-e` | `[]` | Exclude paths matching glob patterns (`doublestar` syntax). Repeatable. |
+| `--exclude-from` | | `[]` | Exclude paths matching patterns from file(s). Alias: `--exclude-file`. Repeatable. |
 | `--no-color` | | `false` | Suppress ANSI color codes in table output. |
 | `--version` | `-v` | | Print the version (`v0.2.0`). |
 | `--help` | `-h` | | Print help and usage information. |
@@ -190,6 +198,7 @@ git-dirstat -f tsv > stats.tsv
   - The `--reverse` (`-r`) flag reverses the overall sorted order.
 - **Binary Files**: Modified binary files (e.g. images, PDFs, archives, compiled binaries) are counted as `+1` in `Files`, with `Added: 0`, `Deleted: 0`, and `Net: 0`.
 - **Renames & Moves**: Rename detection is intentionally not performed. Moved files are aggregated as deletions at the source path and additions at the destination path.
+- **Exclude Pattern Files**: When passing `--exclude-from` (or `--exclude-file`), patterns are loaded line by line from the designated files. Empty lines and lines starting with `#` are ignored as comments. Leading/trailing whitespace is trimmed. Patterns from multiple files and command-line `-e / --exclude` flags are merged together.
 - **Untracked Files**: When analyzing uncommitted changes in the working tree, untracked files are excluded. Only tracked files with staged or unstaged modifications are included.
 - **Zero-Diff Behavior**: When no changes exist:
   - **Table**: Prints table headers and a `TOTAL` row with all zeroes.
@@ -274,7 +283,7 @@ All error messages are written to standard error (`stderr`).
 | :---: | :--- | :--- |
 | `0` | **Success** | Operation completed successfully (including zero diffs found). |
 | `1` | **Git / Runtime Error** | `.git` repository not found, empty repository without commits, unresolvable commit/branch/tag ref, invalid commit hash, or no common ancestor found in three-dot range (`...`). |
-| `2` | **User Input Error** | Unrecognized flags, `--depth < 1`, invalid `--sort` or `--format` values, conflicting `-t` and `-- <target-path>`, malformed range syntax, or combining range notation with extra commit arguments. |
+| `2` | **User Input Error** | Unrecognized flags, `--depth < 1`, invalid `--sort` or `--format` values, conflicting `-t` and `-- <target-path>`, malformed range syntax, combining range notation with extra commit arguments, or unreadable exclude pattern file specified via `--exclude-from` / `--exclude-file`. |
 
 ---
 

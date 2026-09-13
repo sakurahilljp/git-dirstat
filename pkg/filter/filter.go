@@ -1,6 +1,8 @@
 package filter
 
 import (
+	"bufio"
+	"os"
 	"path"
 	"path/filepath"
 	"strings"
@@ -89,4 +91,29 @@ func (f *PathFilter) IsExcluded(filePath string) bool {
 		}
 	}
 	return false
+}
+
+// LoadPatternsFromFile reads patterns from a file, skipping empty lines and comments starting with '#'.
+func LoadPatternsFromFile(filePath string) ([]string, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var patterns []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if len(line) == 0 || strings.HasPrefix(line, "#") {
+			continue
+		}
+		patterns = append(patterns, line)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return patterns, nil
 }
