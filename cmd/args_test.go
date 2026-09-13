@@ -309,4 +309,15 @@ func TestParseAndValidate_ExcludeFile(t *testing.T) {
 	if !errors.As(err, &exitErr) || exitErr.Code != 2 {
 		t.Errorf("expected ExitCodeError with code 2, got %v", err)
 	}
+
+	// Test directory gives ExitCode 2
+	dirCmd := newTestCmd()
+	_ = dirCmd.ParseFlags([]string{"--exclude-from", tempDir})
+	_, err = ParseAndValidate(dirCmd, []string{})
+	if err == nil {
+		t.Fatalf("expected error for directory as exclude file, got nil")
+	}
+	if !errors.As(err, &exitErr) || exitErr.Code != 2 {
+		t.Errorf("expected ExitCodeError with code 2 for directory, got %v", err)
+	}
 }

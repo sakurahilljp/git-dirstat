@@ -121,4 +121,24 @@ func TestLoadPatternsFromFile(t *testing.T) {
 	if err == nil {
 		t.Errorf("expected error for non-existent file, got nil")
 	}
+
+	// Test trailing whitespace / comments semantics
+	fileWithTrailing := filepath.Join(tempDir, ".ignore3")
+	if err := os.WriteFile(fileWithTrailing, []byte("   *.go   \n*.txt # this is not a comment\n"), 0644); err != nil {
+		t.Fatalf("failed to write trailing file: %v", err)
+	}
+	patterns, err = LoadPatternsFromFile(fileWithTrailing)
+	if err != nil {
+		t.Fatalf("LoadPatternsFromFile failed: %v", err)
+	}
+	expectedTrailing := []string{"*.go", "*.txt # this is not a comment"}
+	if !reflect.DeepEqual(patterns, expectedTrailing) {
+		t.Errorf("got %v, want %v", patterns, expectedTrailing)
+	}
+
+	// Test directory
+	_, err = LoadPatternsFromFile(tempDir)
+	if err == nil {
+		t.Errorf("expected error for directory, got nil")
+	}
 }
