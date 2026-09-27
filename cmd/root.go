@@ -31,6 +31,7 @@ func NewRootCommand() *cobra.Command {
 		Version:       Version,
 		SilenceErrors: true,
 		SilenceUsage:  true,
+		Args:          cobra.ArbitraryArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			cfg, err := ParseAndValidate(cmd, args)
 			if err != nil {
@@ -118,6 +119,8 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.Flags().BoolVar(&percentFlag, "percent", false, "Show change percentage column")
 	rootCmd.Flags().BoolVar(&graphFlag, "graph", false, "Show inline change bar graph")
 	rootCmd.Flags().BoolVar(&statFlag, "stat", false, "Show both percentage and inline bar graph")
+
+	rootCmd.AddCommand(NewChurnCommand())
 
 	return rootCmd
 }

@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consolidated exclusion and target boundary filtering into `pkg/filter/PathFilter` to eliminate duplicate logic.
 
 ### Added
+- Added `churn` sub-command (with alias `hotspot`) for historical code churn and hotspot analysis across commit histories.
+  - Supports `--since`, `--until`, `-n` / `--max-count`, `--no-merges` (default true), `--first-parent`, and `--fast` (speedy commit frequency count skipping patch computation).
+  - Metrics tracked per directory: `Commits`, `Files`, `Added`, `Deleted`, `Churn` (added+deleted), and `Percent`.
+  - Supports sorting by `commits` (default), `churn`, `files`, `added`, `deleted`, `path`, or `percent`, with `--top N` truncation.
+  - Full output format support: `table` (with `--graph`), `markdown`, `json`, `csv`, and `tsv`.
+  - Comprehensive user guide added in `docs/hotspot-analysis-guide.md`.
 - Added `--format markdown` (alias: `-f md`) output format supporting GitHub Flavored Markdown (GFM) tables with code span path protection and bold totals.
 - Added `--percent` CLI flag to display directory modification ratio (percentage of total added + deleted lines).
 - Added `--graph` CLI flag to display proportional inline change bar graph (`+` for additions in green, `-` for deletions in red).

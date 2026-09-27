@@ -26,7 +26,9 @@ Built entirely on pure Go ([go-git](https://github.com/go-git/go-git)), `git-dir
   - **JSON**: Machine-readable JSON output with detailed per-directory statistics.
   - **CSV / TSV**: Delimited plain text for spreadsheet analysis and CI/CD pipelines.
 - **Flexible Sorting**: Sort results by `added` (default), `deleted`, `net`, `files`, or `path`, with reverse order support (`--reverse` / `-r`).
+- **Hotspot & Code Churn Analysis (`churn` / `hotspot`)**: Walk commit history to detect frequently modified directories, cumulative code churn, and refactoring hotspots ([User Guide](docs/hotspot-analysis-guide.md)).
 - **Binary File Support**: Modified binary files (e.g. images, archives, compiled binaries) are counted in `Files` (`+1`), with line counts set to zero (`Added: 0`, `Deleted: 0`, `Net: 0`).
+
 
 ---
 
@@ -186,6 +188,29 @@ git-dirstat --percent
 # Display inline bar graph only
 git-dirstat --graph
 ```
+
+#### 10. Hotspot & Code Churn Analysis (`churn` / `hotspot`)
+Inspect historical commit frequency and cumulative code modifications:
+```bash
+# Analyze repository commit history (default: HEAD)
+git-dirstat churn
+
+# Filter by time period
+git-dirstat churn --since="1 month ago"
+
+# Limit commit count with visual bar graph and depth 2
+git-dirstat churn -n 100 -d 2 --graph
+
+# Sort by cumulative churn (added + deleted) and show top 5
+git-dirstat churn --sort churn --top 5
+
+# Super-fast mode for large repos (skips Myers line diff)
+git-dirstat churn --fast --since="1 year ago"
+
+# Generate GitHub PR / CI summary in Markdown
+git-dirstat churn -n 50 -f markdown --stat
+```
+For in-depth analysis concepts and patterns, see the [Hotspot Analysis Guide](docs/hotspot-analysis-guide.md).
 
 ---
 

@@ -1,5 +1,7 @@
 package model
 
+import "time"
+
 type CommitSpecType int
 
 const (
@@ -32,3 +34,25 @@ type Config struct {
 	ShowPercent bool
 	ShowGraph   bool
 }
+
+// ChurnConfig represents all resolved options for running git-dirstat churn/hotspot.
+type ChurnConfig struct {
+	CommitRange string
+	TargetPath  string
+	Depth       int
+	Since       *time.Time
+	Until       *time.Time
+	MaxCount    int
+	Sort        string
+	Reverse     bool
+	Top         int
+	Format      string
+	Exclude     []string
+	NoMerges    bool
+	FirstParent bool
+	Fast        bool
+	ShowPercent bool
+	ShowGraph   bool
+	NoColor     bool
+}
+
