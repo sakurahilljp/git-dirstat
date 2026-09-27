@@ -167,6 +167,13 @@ git-dirstat -f csv > stats.csv
 git-dirstat -f tsv > stats.tsv
 ```
 
+Output as Markdown (GFM table for GitHub PR / Summary):
+```bash
+git-dirstat -f markdown
+# or short alias:
+git-dirstat -f md --stat
+```
+
 #### 9. Percentage & Inline Bar Graph
 Display change percentages and visual inline bar graphs:
 ```bash
@@ -190,7 +197,7 @@ git-dirstat --graph
 | `--depth` | `-d` | `1` | Directory tree depth relative to target path (must be $\ge 1$). |
 | `--sort` | `-s` | `added` | Sort column: `added`, `deleted`, `net`, `files`, `path`, or `percent`. |
 | `--reverse` | `-r` | `false` | Sort in ascending order instead of descending. |
-| `--format` | `-f` | `table` | Output format: `table`, `json`, `csv`, or `tsv`. |
+| `--format` | `-f` | `table` | Output format: `table`, `json`, `csv`, `tsv`, or `markdown` (alias: `md`). |
 | `--percent` | | `false` | Display change percentage column. |
 | `--graph` | | `false` | Display proportional inline change bar graph column. |
 | `--stat` | | `false` | Display both percentage and inline bar graph columns. |

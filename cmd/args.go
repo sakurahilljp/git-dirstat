@@ -34,9 +34,12 @@ func ParseAndValidate(cmd *cobra.Command, args []string) (*model.Config, error) 
 		return nil, model.NewInputError("invalid format flag: %w", err)
 	}
 	switch format {
-	case model.FormatTable, model.FormatJSON, model.FormatCSV, model.FormatTSV:
+	case model.FormatTable, model.FormatJSON, model.FormatCSV, model.FormatTSV, model.FormatMarkdown, "md":
+		if format == "md" {
+			format = model.FormatMarkdown
+		}
 	default:
-		return nil, model.NewInputError("invalid format: %q (allowed: table, json, csv, tsv)", format)
+		return nil, model.NewInputError("invalid format: %q (allowed: table, json, csv, tsv, markdown)", format)
 	}
 
 	reverse, _ := cmd.Flags().GetBool("reverse")

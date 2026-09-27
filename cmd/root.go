@@ -94,6 +94,8 @@ func NewRootCommand() *cobra.Command {
 				f = formatter.NewCSVFormatterWithPercent(cfg.ShowPercent)
 			case model.FormatTSV:
 				f = formatter.NewTSVFormatterWithPercent(cfg.ShowPercent)
+			case model.FormatMarkdown:
+				f = formatter.NewMarkdownFormatterWithOptions(cfg.ShowPercent, cfg.ShowGraph)
 			case model.FormatTable:
 				fallthrough
 			default:
@@ -108,7 +110,7 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.Flags().IntVarP(&depthFlag, "depth", "d", 1, "Directory tree depth relative to target path")
 	rootCmd.Flags().StringVarP(&sortFlag, "sort", "s", "added", "Sort field: files, added, deleted, net, path, percent")
 	rootCmd.Flags().BoolVarP(&reverseFlag, "reverse", "r", false, "Sort in ascending order (default: descending)")
-	rootCmd.Flags().StringVarP(&formatFlag, "format", "f", "table", "Output format: table, json, csv, tsv")
+	rootCmd.Flags().StringVarP(&formatFlag, "format", "f", "table", "Output format: table, json, csv, tsv, markdown")
 	rootCmd.Flags().StringArrayP("exclude", "e", []string{}, "File/path patterns to exclude (doublestar ** format)")
 	rootCmd.Flags().StringArray("exclude-from", []string{}, "File containing patterns to exclude (one per line, # for comments)")
 	rootCmd.Flags().StringArray("exclude-file", []string{}, "Alias for --exclude-from")

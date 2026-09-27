@@ -10,10 +10,11 @@ const (
 )
 
 const (
-	FormatTable = "table"
-	FormatJSON  = "json"
-	FormatCSV   = "csv"
-	FormatTSV   = "tsv"
+	FormatTable    = "table"
+	FormatJSON     = "json"
+	FormatCSV      = "csv"
+	FormatTSV      = "tsv"
+	FormatMarkdown = "markdown"
 )
 
 // Entry represents an aggregated directory or root files bucket.

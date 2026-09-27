@@ -61,7 +61,7 @@ git-dirstat [OPTIONS] [-t <target-path>] [<commit> [<commit>] | <commit>..<commi
 | `--depth` | `-d` | `1` | int | Directory tree depth relative to target path (must be >= 1) |
 | `--sort` | `-s` | `added` | string | Sort field: `files`, `added`, `deleted`, `net`, `path`, `percent` |
 | `--reverse` | `-r` | `false` | bool | Sort in ascending order (default: descending) |
-| `--format` | `-f` | `table` | string | Output format: `table`, `json`, `csv`, `tsv` |
+| `--format` | `-f` | `table` | string | Output format: `table`, `json`, `csv`, `tsv`, `markdown` (alias: `md`) |
 | `--percent` | | `false` | bool | Display change percentage column |
 | `--graph` | | `false` | bool | Display proportional inline change bar graph column |
 | `--stat` | | `false` | bool | Display both percentage and inline bar graph columns |
@@ -244,6 +244,26 @@ src/ (root files),2,30,5,25
 ```
 
 TSV uses tab separators (`\t`) with the same schema. If no changes exist, only the header line is emitted.
+
+### 6.4 Markdown Output (`--format markdown` / `-f md`)
+
+GitHub Flavored Markdown (GFM) table suitable for pull request summaries and `$GITHUB_STEP_SUMMARY`. Paths are enclosed in code spans to protect underscore-separated identifiers, and totals are rendered in bold:
+
+```bash
+git-dirstat -t src/ -f markdown --stat
+```
+
+```markdown
+**Target:** `src/` (Depth: 1)
+
+| Directory | Files | Added | Deleted | Net | Percent | Graph |
+| :--- | ---: | ---: | ---: | ---: | ---: | :--- |
+| `src/components/` | 15 | 820 | 150 | +670 | 56.1% | `++++++++++--` |
+| `src/services/` | 8 | 450 | 120 | +330 | 32.9% | `++++++-` |
+| `src/utils/` | 3 | 120 | 35 | +85 | 9.0% | `+-` |
+| `src/ (root files)` | 2 | 30 | 5 | +25 | 2.0% | `+` |
+| **TOTAL** | **28** | **1420** | **310** | **+1110** | **100.0%** | `++++++++++++++++----` |
+```
 
 ---
 

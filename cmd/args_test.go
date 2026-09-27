@@ -171,6 +171,20 @@ func TestParseAndValidate(t *testing.T) {
 			flags:   []string{"-f", "xml"},
 			wantErr: true,
 		},
+		{
+			name:    "valid format markdown",
+			args:    []string{},
+			flags:   []string{"-f", "markdown"},
+			wantTgt: ".",
+			wantErr: false,
+		},
+		{
+			name:    "valid format md",
+			args:    []string{},
+			flags:   []string{"-f", "md"},
+			wantTgt: ".",
+			wantErr: false,
+		},
 	}
 
 	for _, tt := range tests {
@@ -369,5 +383,35 @@ func TestParseAndValidate_SortPercent(t *testing.T) {
 	}
 	if cfg.Sort != model.SortPercent {
 		t.Errorf("expected sort %q, got %q", model.SortPercent, cfg.Sort)
+	}
+}
+
+func TestParseAndValidate_Format(t *testing.T) {
+	tests := []struct {
+		name       string
+		flags      []string
+		wantFormat string
+	}{
+		{"default", []string{}, model.FormatTable},
+		{"table", []string{"-f", "table"}, model.FormatTable},
+		{"json", []string{"-f", "json"}, model.FormatJSON},
+		{"csv", []string{"-f", "csv"}, model.FormatCSV},
+		{"tsv", []string{"-f", "tsv"}, model.FormatTSV},
+		{"markdown", []string{"-f", "markdown"}, model.FormatMarkdown},
+		{"md", []string{"-f", "md"}, model.FormatMarkdown},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := newTestCmd()
+			_ = cmd.ParseFlags(tt.flags)
+			cfg, err := ParseAndValidate(cmd, []string{})
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if cfg.Format != tt.wantFormat {
+				t.Errorf("expected format %q, got %q", tt.wantFormat, cfg.Format)
+			}
+		})
 	}
 }

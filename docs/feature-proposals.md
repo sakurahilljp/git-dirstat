@@ -9,7 +9,7 @@
 | 優先度 | 機能拡張案 | カテゴリ | 実装難易度 | 主な価値・対象ユースケース |
 | :--- | :--- | :--- | :---: | :--- |
 | **完了** | **変更比率（%）およびインライン・バーグラフ表示** | UX / 可視化 | 中 | 変更規模と内訳の直感的把握（`--stat`, `--percent`, `--graph`） |
-| **高** | **Markdown 出力フォーマット** (`-f markdown`) | UX / 連携 | 低 | GitHub Actions / PR コメント自動化 |
+| **完了** | **Markdown 出力フォーマット** (`-f markdown`) | UX / 連携 | 低 | GitHub Actions / PR コメント自動化 |
 | **高** | **しきい値フィルタ** (`--threshold` / `--min-percent`) | ノイズ削減 | 低 | 微小な変更の除外、重要ディレクトリへの集中 |
 | **中** | **Untracked（未追跡）ファイルの取り込み** (`-u`) | 差分検出 | 中 | 新規開発中・コミット前の作業ツリー分析 |
 | **中** | **拡張子 / 言語別集計** (`--by-ext` / `--by-lang`) | 多角分析 | 中 | ドキュメント・テスト・コード比率の分離 |
@@ -33,6 +33,7 @@
 #### ② Markdown 出力フォーマット (`--format markdown`)
 * **概要**: GitHub / GitLab の Pull Request や Issue コメント、`$GITHUB_STEP_SUMMARY` にそのまま貼り付け可能な GFM（GitHub Flavored Markdown）テーブル形式を出力。
 * **メリット**: CI/CD パイプライン内で実行し、PR の規模感や変更範囲のサマリーを自動コメントする Bot を容易に構築可能。
+* **ステータス**: `feature/markdown-formatter` にて実装完了。
 * **出力イメージ**:
   ```markdown
   | Directory | Files | Added | Deleted | Net | Percent |

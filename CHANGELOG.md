@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consolidated exclusion and target boundary filtering into `pkg/filter/PathFilter` to eliminate duplicate logic.
 
 ### Added
+- Added `--format markdown` (alias: `-f md`) output format supporting GitHub Flavored Markdown (GFM) tables with code span path protection and bold totals.
 - Added `--percent` CLI flag to display directory modification ratio (percentage of total added + deleted lines).
 - Added `--graph` CLI flag to display proportional inline change bar graph (`+` for additions in green, `-` for deletions in red).
 - Added `--stat` CLI flag as an ergonomic shortcut to enable both `--percent` and `--graph` simultaneously.

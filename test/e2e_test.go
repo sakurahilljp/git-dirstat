@@ -367,4 +367,27 @@ func TestE2E_Comprehensive(t *testing.T) {
 			t.Errorf("expected header with percent in CSV output, got: %s", outCsv)
 		}
 	})
+
+	t.Run("markdown format", func(t *testing.T) {
+		out, err := runCmdInDir(dir, "-t", "src/", "-f", "markdown")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !strings.Contains(out, "**Target:** `src/` (Depth: 1)") {
+			t.Errorf("missing target line: %s", out)
+		}
+		if !strings.Contains(out, "| Directory | Files | Added | Deleted | Net |") {
+			t.Errorf("missing headers: %s", out)
+		}
+	})
+
+	t.Run("markdown format stat", func(t *testing.T) {
+		out, err := runCmdInDir(dir, "-t", "src/", "-f", "md", "--stat")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !strings.Contains(out, "| Directory | Files | Added | Deleted | Net | Percent | Graph |") {
+			t.Errorf("missing headers with stat: %s", out)
+		}
+	})
 }
