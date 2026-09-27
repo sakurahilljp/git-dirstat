@@ -1,6 +1,7 @@
 package aggregator
 
 import (
+	"math"
 	"path"
 	"path/filepath"
 	"sort"
@@ -116,7 +117,13 @@ func (s *StreamAggregator) Consume(d model.FileDiff) error {
 func (s *StreamAggregator) Result() (*model.Report, error) {
 	var entries []model.Entry
 
+	totalChanges := s.summary.TotalAdded + s.summary.TotalDeleted
 	for _, b := range s.buckets {
+		percent := 0.0
+		entryChanges := b.added + b.deleted
+		if totalChanges > 0 {
+			percent = math.Round((float64(entryChanges)/float64(totalChanges))*1000) / 10
+		}
 		entry := model.Entry{
 			Path:    b.path,
 			IsRoot:  b.isRoot,
@@ -124,6 +131,7 @@ func (s *StreamAggregator) Result() (*model.Report, error) {
 			Added:   b.added,
 			Deleted: b.deleted,
 			Net:     b.added - b.deleted,
+			Percent: percent,
 		}
 		entries = append(entries, entry)
 	}
@@ -250,6 +258,14 @@ func sortEntries(entries []model.Entry, sortField string) {
 		case model.SortNet:
 			if a.Net != b.Net {
 				return a.Net > b.Net
+			}
+			return a.Path < b.Path
+
+		case model.SortPercent:
+			aChanges := a.Added + a.Deleted
+			bChanges := b.Added + b.Deleted
+			if aChanges != bChanges {
+				return aChanges > bChanges
 			}
 			return a.Path < b.Path
 

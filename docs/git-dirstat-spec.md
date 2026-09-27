@@ -59,9 +59,12 @@ git-dirstat [OPTIONS] [-t <target-path>] [<commit> [<commit>] | <commit>..<commi
 | --- | --- | --- | --- | --- |
 | `--target` | `-t` | `.` | string | Base directory path to scope aggregation (CWD-relative, equivalent to `-- <path>`) |
 | `--depth` | `-d` | `1` | int | Directory tree depth relative to target path (must be >= 1) |
-| `--sort` | `-s` | `added` | string | Sort field: `files`, `added`, `deleted`, `net`, `path` |
+| `--sort` | `-s` | `added` | string | Sort field: `files`, `added`, `deleted`, `net`, `path`, `percent` |
 | `--reverse` | `-r` | `false` | bool | Sort in ascending order (default: descending) |
 | `--format` | `-f` | `table` | string | Output format: `table`, `json`, `csv`, `tsv` |
+| `--percent` | | `false` | bool | Display change percentage column |
+| `--graph` | | `false` | bool | Display proportional inline change bar graph column |
+| `--stat` | | `false` | bool | Display both percentage and inline bar graph columns |
 | `--exclude` | `-e` | None | []string | File/path patterns to exclude (doublestar `**` format, multi-value allowed) |
 | `--exclude-from` | | None | []string | Read exclusion patterns from file(s) (one pattern per line, alias: `--exclude-file`) |
 | `--no-color` | | `false` | bool | Suppress ANSI color escapes (auto-disabled if stdout is non-TTY) |

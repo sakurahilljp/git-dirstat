@@ -3,6 +3,7 @@ package formatter
 import (
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -18,12 +19,25 @@ const (
 )
 
 type TableFormatter struct {
-	NoColor bool
+	NoColor     bool
+	ShowPercent bool
+	ShowGraph   bool
+	MaxGraphLen int
 }
 
 func NewTableFormatter(noColor bool) *TableFormatter {
 	return &TableFormatter{
-		NoColor: noColor,
+		NoColor:     noColor,
+		MaxGraphLen: 20,
+	}
+}
+
+func NewTableFormatterWithOptions(noColor, showPercent, showGraph bool) *TableFormatter {
+	return &TableFormatter{
+		NoColor:     noColor,
+		ShowPercent: showPercent,
+		ShowGraph:   showGraph,
+		MaxGraphLen: 20,
 	}
 }
 
@@ -42,6 +56,18 @@ func (f *TableFormatter) shouldUseColor(w io.Writer) bool {
 func (f *TableFormatter) Format(w io.Writer, report *model.Report) error {
 	useColor := f.shouldUseColor(w)
 
+	maxGraphLen := f.MaxGraphLen
+	if maxGraphLen <= 0 {
+		maxGraphLen = 20
+	}
+	graphWidth := maxGraphLen
+	if graphWidth < 5 {
+		graphWidth = 5
+	}
+	percentWidth := 8
+
+	totalChanges := report.Summary.TotalAdded + report.Summary.TotalDeleted
+
 	// Determine column widths
 	dirWidth := 28
 	filesWidth := 10
@@ -56,6 +82,8 @@ func (f *TableFormatter) Format(w io.Writer, report *model.Report) error {
 		deleted string
 		net     string
 		netVal  int
+		percent string
+		graph   string
 	}
 
 	var rows []rowData
@@ -65,6 +93,8 @@ func (f *TableFormatter) Format(w io.Writer, report *model.Report) error {
 		addedStr := strconv.Itoa(e.Added)
 		deletedStr := strconv.Itoa(e.Deleted)
 		netStr := formatNet(e.Net)
+		percentStr := fmt.Sprintf("%5.1f%%", e.Percent)
+		graphStr := buildGraphBar(e.Added, e.Deleted, totalChanges, maxGraphLen, useColor)
 
 		if len(dirStr) > dirWidth {
 			dirWidth = len(dirStr)
@@ -89,6 +119,8 @@ func (f *TableFormatter) Format(w io.Writer, report *model.Report) error {
 			deleted: deletedStr,
 			net:     netStr,
 			netVal:  e.Net,
+			percent: percentStr,
+			graph:   graphStr,
 		})
 	}
 
@@ -96,6 +128,12 @@ func (f *TableFormatter) Format(w io.Writer, report *model.Report) error {
 	totalAddedStr := strconv.Itoa(report.Summary.TotalAdded)
 	totalDeletedStr := strconv.Itoa(report.Summary.TotalDeleted)
 	totalNetStr := formatNet(report.Summary.Net)
+
+	totalPercentStr := "  0.0%"
+	if totalChanges > 0 {
+		totalPercentStr = "100.0%"
+	}
+	totalGraphStr := buildGraphBar(report.Summary.TotalAdded, report.Summary.TotalDeleted, totalChanges, maxGraphLen, useColor)
 
 	if len(totalFilesStr) > filesWidth {
 		filesWidth = len(totalFilesStr)
@@ -111,19 +149,34 @@ func (f *TableFormatter) Format(w io.Writer, report *model.Report) error {
 	}
 
 	totalWidth := dirWidth + 1 + filesWidth + 1 + addedWidth + 1 + deletedWidth + 1 + netWidth
+	if f.ShowPercent {
+		totalWidth += 1 + percentWidth
+	}
+	if f.ShowGraph {
+		totalWidth += 1 + graphWidth
+	}
 	sep := strings.Repeat("-", totalWidth)
 
 	// Target line
 	fmt.Fprintf(w, "Target: %s (Depth: %d)\n\n", report.Target, report.Depth)
 
 	// Header line
-	fmt.Fprintf(w, "%-*s %*s %*s %*s %*s\n",
+	var header strings.Builder
+	header.WriteString(fmt.Sprintf("%-*s %*s %*s %*s %*s",
 		dirWidth, "Directory",
 		filesWidth, "Files",
 		addedWidth, "Added",
 		deletedWidth, "Deleted",
 		netWidth, "Net",
-	)
+	))
+	if f.ShowPercent {
+		header.WriteString(fmt.Sprintf(" %*s", percentWidth, "Percent"))
+	}
+	if f.ShowGraph {
+		header.WriteString(" Graph")
+	}
+	header.WriteString("\n")
+	w.Write([]byte(header.String()))
 	fmt.Fprintln(w, sep)
 
 	// Data rows
@@ -146,13 +199,23 @@ func (f *TableFormatter) Format(w io.Writer, report *model.Report) error {
 			}
 		}
 
-		fmt.Fprintf(w, "%-*s %*s %s%s %s%s %s%s\n",
+		var rowLine strings.Builder
+		rowLine.WriteString(fmt.Sprintf("%-*s %*s %s%s %s%s %s%s",
 			dirWidth, r.dir,
 			filesWidth, r.files,
 			strings.Repeat(" ", addedWidth-len(r.added)), addedColored,
 			strings.Repeat(" ", deletedWidth-len(r.deleted)), deletedColored,
 			strings.Repeat(" ", netWidth-len(r.net)), netColored,
-		)
+		))
+		if f.ShowPercent {
+			rowLine.WriteString(fmt.Sprintf(" %*s", percentWidth, r.percent))
+		}
+		if f.ShowGraph {
+			rowLine.WriteString(" ")
+			rowLine.WriteString(r.graph)
+		}
+		rowLine.WriteString("\n")
+		w.Write([]byte(rowLine.String()))
 	}
 
 	if len(rows) > 0 {
@@ -177,15 +240,80 @@ func (f *TableFormatter) Format(w io.Writer, report *model.Report) error {
 		}
 	}
 
-	fmt.Fprintf(w, "%-*s %*s %s%s %s%s %s%s\n",
+	var totalLine strings.Builder
+	totalLine.WriteString(fmt.Sprintf("%-*s %*s %s%s %s%s %s%s",
 		dirWidth, "TOTAL",
 		filesWidth, totalFilesStr,
 		strings.Repeat(" ", addedWidth-len(totalAddedStr)), totalAddedColored,
 		strings.Repeat(" ", deletedWidth-len(totalDeletedStr)), totalDeletedColored,
 		strings.Repeat(" ", netWidth-len(totalNetStr)), totalNetColored,
-	)
+	))
+	if f.ShowPercent {
+		totalLine.WriteString(fmt.Sprintf(" %*s", percentWidth, totalPercentStr))
+	}
+	if f.ShowGraph {
+		totalLine.WriteString(" ")
+		totalLine.WriteString(totalGraphStr)
+	}
+	totalLine.WriteString("\n")
+	w.Write([]byte(totalLine.String()))
 
 	return nil
+}
+
+func buildGraphBar(added, deleted, totalChanges, maxLen int, useColor bool) string {
+	rowChanges := added + deleted
+	if totalChanges <= 0 || rowChanges <= 0 || maxLen <= 0 {
+		return ""
+	}
+
+	barLen := int(math.Round(float64(rowChanges) / float64(totalChanges) * float64(maxLen)))
+	if barLen == 0 && rowChanges > 0 {
+		barLen = 1
+	}
+	if barLen > maxLen {
+		barLen = maxLen
+	}
+
+	var plusCount, minusCount int
+	if added > 0 && deleted == 0 {
+		plusCount = barLen
+		minusCount = 0
+	} else if added == 0 && deleted > 0 {
+		plusCount = 0
+		minusCount = barLen
+	} else {
+		plusCount = int(math.Round(float64(added) / float64(rowChanges) * float64(barLen)))
+		minusCount = barLen - plusCount
+
+		// Ensure both + and - appear if both added and deleted > 0 and barLen >= 2
+		if barLen >= 2 {
+			if plusCount == 0 && added > 0 {
+				plusCount = 1
+				minusCount = barLen - 1
+			} else if minusCount == 0 && deleted > 0 {
+				minusCount = 1
+				plusCount = barLen - 1
+			}
+		}
+	}
+
+	if useColor {
+		var sb strings.Builder
+		if plusCount > 0 {
+			sb.WriteString(colorGreen)
+			sb.WriteString(strings.Repeat("+", plusCount))
+			sb.WriteString(colorReset)
+		}
+		if minusCount > 0 {
+			sb.WriteString(colorRed)
+			sb.WriteString(strings.Repeat("-", minusCount))
+			sb.WriteString(colorReset)
+		}
+		return sb.String()
+	}
+
+	return strings.Repeat("+", plusCount) + strings.Repeat("-", minusCount)
 }
 
 func formatNet(net int) string {

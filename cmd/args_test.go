@@ -25,6 +25,9 @@ func newTestCmd() *cobra.Command {
 	cmd.Flags().StringArray("exclude-from", []string{}, "Exclude from file")
 	cmd.Flags().StringArray("exclude-file", []string{}, "Exclude file alias")
 	cmd.Flags().Bool("no-color", false, "No color")
+	cmd.Flags().Bool("percent", false, "Show percent")
+	cmd.Flags().Bool("graph", false, "Show graph")
+	cmd.Flags().Bool("stat", false, "Show stat")
 	return cmd
 }
 
@@ -319,5 +322,52 @@ func TestParseAndValidate_ExcludeFile(t *testing.T) {
 	}
 	if !errors.As(err, &exitErr) || exitErr.Code != 2 {
 		t.Errorf("expected ExitCodeError with code 2 for directory, got %v", err)
+	}
+}
+
+func TestParseAndValidate_PercentGraphStat(t *testing.T) {
+	// Test --percent
+	cmd1 := newTestCmd()
+	_ = cmd1.ParseFlags([]string{"--percent"})
+	cfg1, err := ParseAndValidate(cmd1, []string{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg1.ShowPercent || cfg1.ShowGraph {
+		t.Errorf("expected ShowPercent=true, ShowGraph=false, got %v, %v", cfg1.ShowPercent, cfg1.ShowGraph)
+	}
+
+	// Test --graph
+	cmd2 := newTestCmd()
+	_ = cmd2.ParseFlags([]string{"--graph"})
+	cfg2, err := ParseAndValidate(cmd2, []string{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg2.ShowPercent || !cfg2.ShowGraph {
+		t.Errorf("expected ShowPercent=false, ShowGraph=true, got %v, %v", cfg2.ShowPercent, cfg2.ShowGraph)
+	}
+
+	// Test --stat (both percent and graph enabled)
+	cmd3 := newTestCmd()
+	_ = cmd3.ParseFlags([]string{"--stat"})
+	cfg3, err := ParseAndValidate(cmd3, []string{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg3.ShowPercent || !cfg3.ShowGraph {
+		t.Errorf("expected ShowPercent=true, ShowGraph=true with --stat, got %v, %v", cfg3.ShowPercent, cfg3.ShowGraph)
+	}
+}
+
+func TestParseAndValidate_SortPercent(t *testing.T) {
+	cmd := newTestCmd()
+	_ = cmd.ParseFlags([]string{"--sort", "percent"})
+	cfg, err := ParseAndValidate(cmd, []string{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Sort != model.SortPercent {
+		t.Errorf("expected sort %q, got %q", model.SortPercent, cfg.Sort)
 	}
 }

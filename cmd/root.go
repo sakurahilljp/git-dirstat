@@ -20,6 +20,9 @@ func NewRootCommand() *cobra.Command {
 	var reverseFlag bool
 	var formatFlag string
 	var noColorFlag bool
+	var percentFlag bool
+	var graphFlag bool
+	var statFlag bool
 
 	rootCmd := &cobra.Command{
 		Use:           "git-dirstat [OPTIONS] [<commit> [<commit>] | <commit>..<commit> | <commit>...<commit>] [-- <target-path>]",
@@ -88,13 +91,13 @@ func NewRootCommand() *cobra.Command {
 			case model.FormatJSON:
 				f = formatter.NewJSONFormatter()
 			case model.FormatCSV:
-				f = formatter.NewCSVFormatter()
+				f = formatter.NewCSVFormatterWithPercent(cfg.ShowPercent)
 			case model.FormatTSV:
-				f = formatter.NewTSVFormatter()
+				f = formatter.NewTSVFormatterWithPercent(cfg.ShowPercent)
 			case model.FormatTable:
 				fallthrough
 			default:
-				f = formatter.NewTableFormatter(cfg.NoColor)
+				f = formatter.NewTableFormatterWithOptions(cfg.NoColor, cfg.ShowPercent, cfg.ShowGraph)
 			}
 
 			return f.Format(cmd.OutOrStdout(), report)
@@ -103,13 +106,16 @@ func NewRootCommand() *cobra.Command {
 
 	rootCmd.Flags().StringVarP(&targetFlag, "target", "t", ".", "Base directory path to scope aggregation (CWD-relative)")
 	rootCmd.Flags().IntVarP(&depthFlag, "depth", "d", 1, "Directory tree depth relative to target path")
-	rootCmd.Flags().StringVarP(&sortFlag, "sort", "s", "added", "Sort field: files, added, deleted, net, path")
+	rootCmd.Flags().StringVarP(&sortFlag, "sort", "s", "added", "Sort field: files, added, deleted, net, path, percent")
 	rootCmd.Flags().BoolVarP(&reverseFlag, "reverse", "r", false, "Sort in ascending order (default: descending)")
 	rootCmd.Flags().StringVarP(&formatFlag, "format", "f", "table", "Output format: table, json, csv, tsv")
 	rootCmd.Flags().StringArrayP("exclude", "e", []string{}, "File/path patterns to exclude (doublestar ** format)")
 	rootCmd.Flags().StringArray("exclude-from", []string{}, "File containing patterns to exclude (one per line, # for comments)")
 	rootCmd.Flags().StringArray("exclude-file", []string{}, "Alias for --exclude-from")
 	rootCmd.Flags().BoolVar(&noColorFlag, "no-color", false, "Suppress ANSI color escapes")
+	rootCmd.Flags().BoolVar(&percentFlag, "percent", false, "Show change percentage column")
+	rootCmd.Flags().BoolVar(&graphFlag, "graph", false, "Show inline change bar graph")
+	rootCmd.Flags().BoolVar(&statFlag, "stat", false, "Show both percentage and inline bar graph")
 
 	return rootCmd
 }

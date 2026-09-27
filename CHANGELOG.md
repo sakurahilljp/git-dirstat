@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consolidated exclusion and target boundary filtering into `pkg/filter/PathFilter` to eliminate duplicate logic.
 
 ### Added
+- Added `--percent` CLI flag to display directory modification ratio (percentage of total added + deleted lines).
+- Added `--graph` CLI flag to display proportional inline change bar graph (`+` for additions in green, `-` for deletions in red).
+- Added `--stat` CLI flag as an ergonomic shortcut to enable both `--percent` and `--graph` simultaneously.
+- Supported `--sort percent` to sort entries by modification percentage / line churn.
+- Added `Percent float64` field to `model.Entry`, automatically serialized to JSON output and optionally to CSV/TSV (`--percent`).
 - Added `--exclude-from` and `--exclude-file` CLI flags allowing users to load exclusion glob patterns from external files (e.g., `.gitignore`, `.dirstatignore`), with support for multi-value flags, blank line skipping, and `#` comments.
 - Added `pkg/filter.LoadPatternsFromFile` helper for line-by-line file pattern parsing.
 - New `pkg/filter` package providing early pre-filtering for target boundaries and `doublestar` glob exclusions, skipping expensive Myers diff computations for out-of-scope files.

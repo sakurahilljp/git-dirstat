@@ -325,3 +325,72 @@ func TestGetBucketKey(t *testing.T) {
 		})
 	}
 }
+
+func TestAggregator_PercentAndSortPercent(t *testing.T) {
+	diffs := []model.FileDiff{
+		{Path: "dirA/file.go", Added: 60, Deleted: 40},               // changes: 100
+		{Path: "dirB/file.go", Added: 200, Deleted: 0},               // changes: 200
+		{Path: "dirC/file.go", Added: 10, Deleted: 90},               // changes: 100 (same changes as dirA, tie-breaker: dirA < dirC)
+		{Path: "dirD/file.go", Added: 0, Deleted: 0, IsBinary: true}, // changes: 0
+	}
+	// Total changes = 100 + 200 + 100 + 0 = 400
+
+	opts := AggregatorOptions{
+		RepoRoot:   "/repo",
+		Cwd:        "/repo",
+		TargetPath: ".",
+		Depth:      1,
+		Sort:       model.SortPercent,
+	}
+
+	report, err := Aggregate(diffs, opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(report.Entries) != 4 {
+		t.Fatalf("expected 4 entries, got %d", len(report.Entries))
+	}
+
+	// 1. dirB: 200/400 = 50.0%
+	if report.Entries[0].Path != "dirB/" || report.Entries[0].Percent != 50.0 {
+		t.Errorf("expected dirB at index 0 with 50.0%%, got %+v", report.Entries[0])
+	}
+	// 2. dirA: 100/400 = 25.0%
+	if report.Entries[1].Path != "dirA/" || report.Entries[1].Percent != 25.0 {
+		t.Errorf("expected dirA at index 1 with 25.0%%, got %+v", report.Entries[1])
+	}
+	// 3. dirC: 100/400 = 25.0%
+	if report.Entries[2].Path != "dirC/" || report.Entries[2].Percent != 25.0 {
+		t.Errorf("expected dirC at index 2 with 25.0%%, got %+v", report.Entries[2])
+	}
+	// 4. dirD: 0/400 = 0.0%
+	if report.Entries[3].Path != "dirD/" || report.Entries[3].Percent != 0.0 {
+		t.Errorf("expected dirD at index 3 with 0.0%%, got %+v", report.Entries[3])
+	}
+}
+
+func TestAggregator_PercentZeroChanges(t *testing.T) {
+	diffs := []model.FileDiff{
+		{Path: "bin/tool", Added: 0, Deleted: 0, IsBinary: true},
+	}
+	opts := AggregatorOptions{
+		RepoRoot:   "/repo",
+		Cwd:        "/repo",
+		TargetPath: ".",
+		Depth:      1,
+		Sort:       model.SortPercent,
+	}
+
+	report, err := Aggregate(diffs, opts)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(report.Entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(report.Entries))
+	}
+	if report.Entries[0].Percent != 0.0 {
+		t.Errorf("expected 0.0%% on zero total changes, got %f", report.Entries[0].Percent)
+	}
+}

@@ -21,12 +21,14 @@ type CommitOptions struct {
 
 // Config represents all resolved options for running git-dirstat.
 type Config struct {
-	CommitOpts CommitOptions
-	TargetPath string
-	Depth      int
-	Sort       string
-	Reverse    bool
-	Format     string
-	Exclude    []string
-	NoColor    bool
+	CommitOpts  CommitOptions
+	TargetPath  string
+	Depth       int
+	Sort        string
+	Reverse     bool
+	Format      string
+	Exclude     []string
+	NoColor     bool
+	ShowPercent bool
+	ShowGraph   bool
 }

@@ -180,3 +180,125 @@ func TestNegativeNetAndDotTarget(t *testing.T) {
 		t.Errorf("expected '(root files),1,10,30,-20' in CSV, got: %s", csvOut)
 	}
 }
+
+func TestTableFormatter_PercentAndGraph(t *testing.T) {
+	rep := sampleReport()
+	// Set percentages
+	// Total changes: 1420 + 310 = 1730
+	// 0: (820+150)/1730 = 56.1%
+	// 1: (450+120)/1730 = 32.9%
+	// 2: (120+35)/1730 = 9.0%
+	// 3: (30+5)/1730 = 2.0%
+	rep.Entries[0].Percent = 56.1
+	rep.Entries[1].Percent = 32.9
+	rep.Entries[2].Percent = 9.0
+	rep.Entries[3].Percent = 2.0
+
+	// 1. Percent only
+	tfPercent := NewTableFormatterWithOptions(true, true, false)
+	var buf bytes.Buffer
+	if err := tfPercent.Format(&buf, rep); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	outPercent := buf.String()
+	if !strings.Contains(outPercent, "Percent") {
+		t.Errorf("missing Percent header: %s", outPercent)
+	}
+	if strings.Contains(outPercent, "Graph") {
+		t.Errorf("unexpected Graph header: %s", outPercent)
+	}
+	if !strings.Contains(outPercent, "56.1%") || !strings.Contains(outPercent, "100.0%") {
+		t.Errorf("missing percent values in table output: %s", outPercent)
+	}
+
+	// 2. Graph only
+	buf.Reset()
+	tfGraph := NewTableFormatterWithOptions(true, false, true)
+	if err := tfGraph.Format(&buf, rep); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	outGraph := buf.String()
+	if strings.Contains(outGraph, "Percent") {
+		t.Errorf("unexpected Percent header: %s", outGraph)
+	}
+	if !strings.Contains(outGraph, "Graph") {
+		t.Errorf("missing Graph header: %s", outGraph)
+	}
+	// Total row should have + and -
+	if !strings.Contains(outGraph, "+") || !strings.Contains(outGraph, "-") {
+		t.Errorf("missing graph bars in output: %s", outGraph)
+	}
+
+	// 3. Both (equivalent to --stat)
+	buf.Reset()
+	tfStat := NewTableFormatterWithOptions(true, true, true)
+	if err := tfStat.Format(&buf, rep); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	outStat := buf.String()
+	if !strings.Contains(outStat, "Percent") || !strings.Contains(outStat, "Graph") {
+		t.Errorf("missing headers in stat output: %s", outStat)
+	}
+	if !strings.Contains(outStat, "56.1%") {
+		t.Errorf("missing percent in stat output: %s", outStat)
+	}
+
+	// 4. Empty report with percent and graph
+	buf.Reset()
+	if err := tfStat.Format(&buf, emptyReport()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	outEmpty := buf.String()
+	if !strings.Contains(outEmpty, "0.0%") {
+		t.Errorf("expected 0.0%% in empty total row: %s", outEmpty)
+	}
+}
+
+func TestTableFormatter_GraphColors(t *testing.T) {
+	// Test buildGraphBar directly with and without color
+	barColored := buildGraphBar(10, 5, 15, 15, true)
+	if !strings.Contains(barColored, colorGreen) || !strings.Contains(barColored, colorRed) {
+		t.Errorf("expected color codes in colored graph bar, got: %q", barColored)
+	}
+
+	barPlain := buildGraphBar(10, 5, 15, 15, false)
+	if strings.Contains(barPlain, "\x1b[") {
+		t.Errorf("unexpected ANSI escape in plain graph bar, got: %q", barPlain)
+	}
+	if !strings.Contains(barPlain, "+") || !strings.Contains(barPlain, "-") {
+		t.Errorf("expected + and - in plain bar, got: %q", barPlain)
+	}
+}
+
+func TestDelimitedFormatters_Percent(t *testing.T) {
+	rep := sampleReport()
+	rep.Entries[0].Percent = 56.1
+
+	// CSV with percent
+	csvFmt := NewCSVFormatterWithPercent(true)
+	var buf bytes.Buffer
+	if err := csvFmt.Format(&buf, rep); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if lines[0] != "path,files,added,deleted,net,percent" {
+		t.Errorf("unexpected csv header with percent: %s", lines[0])
+	}
+	if !strings.Contains(lines[1], ",56.1") {
+		t.Errorf("expected 56.1 in first row: %s", lines[1])
+	}
+
+	// TSV with percent
+	buf.Reset()
+	tsvFmt := NewTSVFormatterWithPercent(true)
+	if err := tsvFmt.Format(&buf, rep); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	tsvLines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if tsvLines[0] != "path\tfiles\tadded\tdeleted\tnet\tpercent" {
+		t.Errorf("unexpected tsv header with percent: %s", tsvLines[0])
+	}
+	if !strings.Contains(tsvLines[1], "\t56.1") {
+		t.Errorf("expected 56.1 in first row: %s", tsvLines[1])
+	}
+}

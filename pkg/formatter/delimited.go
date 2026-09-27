@@ -2,6 +2,7 @@ package formatter
 
 import (
 	"encoding/csv"
+	"fmt"
 	"io"
 	"strconv"
 
@@ -9,15 +10,24 @@ import (
 )
 
 type DelimitedFormatter struct {
-	Comma rune
+	Comma       rune
+	ShowPercent bool
 }
 
 func NewCSVFormatter() *DelimitedFormatter {
 	return &DelimitedFormatter{Comma: ','}
 }
 
+func NewCSVFormatterWithPercent(showPercent bool) *DelimitedFormatter {
+	return &DelimitedFormatter{Comma: ',', ShowPercent: showPercent}
+}
+
 func NewTSVFormatter() *DelimitedFormatter {
 	return &DelimitedFormatter{Comma: '\t'}
+}
+
+func NewTSVFormatterWithPercent(showPercent bool) *DelimitedFormatter {
+	return &DelimitedFormatter{Comma: '\t', ShowPercent: showPercent}
 }
 
 func (f *DelimitedFormatter) Format(w io.Writer, report *model.Report) error {
@@ -25,7 +35,11 @@ func (f *DelimitedFormatter) Format(w io.Writer, report *model.Report) error {
 	writer.Comma = f.Comma
 
 	// Header row
-	if err := writer.Write([]string{"path", "files", "added", "deleted", "net"}); err != nil {
+	header := []string{"path", "files", "added", "deleted", "net"}
+	if f.ShowPercent {
+		header = append(header, "percent")
+	}
+	if err := writer.Write(header); err != nil {
 		return err
 	}
 
@@ -36,6 +50,9 @@ func (f *DelimitedFormatter) Format(w io.Writer, report *model.Report) error {
 			strconv.Itoa(e.Added),
 			strconv.Itoa(e.Deleted),
 			strconv.Itoa(e.Net),
+		}
+		if f.ShowPercent {
+			row = append(row, fmt.Sprintf("%.1f", e.Percent))
 		}
 		if err := writer.Write(row); err != nil {
 			return err

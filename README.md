@@ -167,6 +167,19 @@ git-dirstat -f csv > stats.csv
 git-dirstat -f tsv > stats.tsv
 ```
 
+#### 9. Percentage & Inline Bar Graph
+Display change percentages and visual inline bar graphs:
+```bash
+# Display both percent and inline bar graph
+git-dirstat --stat
+
+# Display percentage column only
+git-dirstat --percent
+
+# Display inline bar graph only
+git-dirstat --graph
+```
+
 ---
 
 ## Options
@@ -175,9 +188,12 @@ git-dirstat -f tsv > stats.tsv
 | :--- | :---: | :---: | :--- |
 | `--target` | `-t` | `.` | Base directory path to scope aggregation (relative to CWD). |
 | `--depth` | `-d` | `1` | Directory tree depth relative to target path (must be $\ge 1$). |
-| `--sort` | `-s` | `added` | Sort column: `added`, `deleted`, `net`, `files`, or `path`. |
+| `--sort` | `-s` | `added` | Sort column: `added`, `deleted`, `net`, `files`, `path`, or `percent`. |
 | `--reverse` | `-r` | `false` | Sort in ascending order instead of descending. |
 | `--format` | `-f` | `table` | Output format: `table`, `json`, `csv`, or `tsv`. |
+| `--percent` | | `false` | Display change percentage column. |
+| `--graph` | | `false` | Display proportional inline change bar graph column. |
+| `--stat` | | `false` | Display both percentage and inline bar graph columns. |
 | `--exclude` | `-e` | `[]` | Exclude paths matching glob patterns (`doublestar` syntax). Repeatable. |
 | `--exclude-from` | | `[]` | Exclude paths matching patterns from file(s). Alias: `--exclude-file`. Repeatable. |
 | `--no-color` | | `false` | Suppress ANSI color codes in table output. |

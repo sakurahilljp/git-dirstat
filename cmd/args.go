@@ -24,9 +24,9 @@ func ParseAndValidate(cmd *cobra.Command, args []string) (*model.Config, error) 
 		return nil, model.NewInputError("invalid sort flag: %w", err)
 	}
 	switch sortField {
-	case model.SortFiles, model.SortAdded, model.SortDeleted, model.SortNet, model.SortPath:
+	case model.SortFiles, model.SortAdded, model.SortDeleted, model.SortNet, model.SortPath, model.SortPercent:
 	default:
-		return nil, model.NewInputError("invalid sort field: %q (allowed: files, added, deleted, net, path)", sortField)
+		return nil, model.NewInputError("invalid sort field: %q (allowed: files, added, deleted, net, path, percent)", sortField)
 	}
 
 	format, err := cmd.Flags().GetString("format")
@@ -41,6 +41,13 @@ func ParseAndValidate(cmd *cobra.Command, args []string) (*model.Config, error) 
 
 	reverse, _ := cmd.Flags().GetBool("reverse")
 	noColor, _ := cmd.Flags().GetBool("no-color")
+	percent, _ := cmd.Flags().GetBool("percent")
+	graph, _ := cmd.Flags().GetBool("graph")
+	stat, _ := cmd.Flags().GetBool("stat")
+	if stat {
+		percent = true
+		graph = true
+	}
 	exclude, _ := cmd.Flags().GetStringArray("exclude")
 	excludeFrom, _ := cmd.Flags().GetStringArray("exclude-from")
 	excludeFile, _ := cmd.Flags().GetStringArray("exclude-file")
@@ -93,14 +100,16 @@ func ParseAndValidate(cmd *cobra.Command, args []string) (*model.Config, error) 
 	}
 
 	return &model.Config{
-		CommitOpts: *commitOpts,
-		TargetPath: targetPath,
-		Depth:      depth,
-		Sort:       sortField,
-		Reverse:    reverse,
-		Format:     format,
-		Exclude:    exclude,
-		NoColor:    noColor,
+		CommitOpts:  *commitOpts,
+		TargetPath:  targetPath,
+		Depth:       depth,
+		Sort:        sortField,
+		Reverse:     reverse,
+		Format:      format,
+		Exclude:     exclude,
+		NoColor:     noColor,
+		ShowPercent: percent,
+		ShowGraph:   graph,
 	}, nil
 }
 

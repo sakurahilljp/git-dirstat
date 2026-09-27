@@ -321,4 +321,50 @@ func TestE2E_Comprehensive(t *testing.T) {
 			t.Errorf("expected error for non-existent exclude-from file, got nil")
 		}
 	})
+
+	t.Run("percent_graph_stat", func(t *testing.T) {
+		// Test --percent flag
+		rangeArg := c1.String()[:7] + "..feature"
+		outPercent, err := runCmdInDir(dir, rangeArg, "--percent")
+		if err != nil {
+			t.Fatalf("runCmdInDir with --percent failed: %v", err)
+		}
+		if !strings.Contains(outPercent, "Percent") || !strings.Contains(outPercent, "%") {
+			t.Errorf("expected Percent header and values in output:\n%s", outPercent)
+		}
+		if strings.Contains(outPercent, "Graph") {
+			t.Errorf("did not expect Graph header in --percent only output:\n%s", outPercent)
+		}
+
+		// Test --graph flag
+		outGraph, err := runCmdInDir(dir, rangeArg, "--graph")
+		if err != nil {
+			t.Fatalf("runCmdInDir with --graph failed: %v", err)
+		}
+		if !strings.Contains(outGraph, "Graph") {
+			t.Errorf("expected Graph header in --graph output:\n%s", outGraph)
+		}
+		if strings.Contains(outGraph, "Percent") {
+			t.Errorf("did not expect Percent header in --graph only output:\n%s", outGraph)
+		}
+
+		// Test --stat flag (enables both percent and graph)
+		outStat, err := runCmdInDir(dir, rangeArg, "--stat")
+		if err != nil {
+			t.Fatalf("runCmdInDir with --stat failed: %v", err)
+		}
+		if !strings.Contains(outStat, "Percent") || !strings.Contains(outStat, "Graph") {
+			t.Errorf("expected both Percent and Graph headers in --stat output:\n%s", outStat)
+		}
+
+		// Test CSV with --percent
+		outCsv, err := runCmdInDir(dir, rangeArg, "-f", "csv", "--percent")
+		if err != nil {
+			t.Fatalf("runCmdInDir with CSV and --percent failed: %v", err)
+		}
+		csvLines := strings.Split(strings.TrimSpace(outCsv), "\n")
+		if len(csvLines) == 0 || csvLines[0] != "path,files,added,deleted,net,percent" {
+			t.Errorf("expected header with percent in CSV output, got: %s", outCsv)
+		}
+	})
 }
