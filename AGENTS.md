@@ -33,6 +33,14 @@ All AI agents and automated tools must strictly adhere to the following Git oper
   - `git status`, `git diff`, `git log`, `git show`, `git tag -l` (inspection commands)
   - Local unit and integration tests (`go test ./...`, `make test`, `make build`)
 
+### 1.4. Feature Branch & Subagent Workflow
+- **Working Branch Required**: When implementing features, bugfixes, or refactoring, never develop directly on `main`. Always create and switch to a dedicated local working branch (`feature/<name>`, `fix/<name>`).
+- **Test Authoring (`test-specialist`)**: Prior to code review, engage the `test-specialist` subagent to create or expand exhaustive unit and E2E test suites, edge cases, and boundary validations.
+- **Stage & Code Review (`code-reviewer`)**: Once implementation and tests are complete, stage all changes (`git add`) and invoke the `code-reviewer` subagent for independent architectural, safety, and quality review before requesting commit approval.
+- **Commit Approval**: Present the commit message and staged diff summary to the user; execute `git commit` only upon explicit user confirmation.
+- **Main Integration (Default: Squash & Fast-Forward)**: In principle, integrate the feature branch into `main` using squash / fast-forward (`git checkout main && git merge --ff-only <branch>`). If an alternative merge strategy is required, the user will explicitly specify it.
+- **Branch Cleanup**: Delete the merged local working branch (`git branch -d <branch>`) immediately following integration into `main`.
+
 ---
 
 ## 2. Code Quality & Build Standards
