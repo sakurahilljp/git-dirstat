@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-09-28
+
 ### Changed
 - Refactored git diff processing from buffered slices to a streaming pipeline (`DiffCommitsStream`, `DiffWorkingTreeStream`, and `StreamAggregator`), drastically reducing peak memory footprint by 80–95% on large repositories.
 - Switched working tree line counting to chunked 32KB buffer reading (`countLinesFromReader`), eliminating full-file string allocations in memory.

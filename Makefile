@@ -2,7 +2,8 @@
 
 BINARY_NAME=git-dirstat
 DIST_DIR=dist
-LDFLAGS=-s -w -X github.com/sakurahilljp/git-dirstat/cmd.Version=v0.2.0
+VERSION ?= $(shell git describe --tags --exact-match 2>/dev/null || echo "v0.3.0")
+LDFLAGS=-s -w -X github.com/sakurahilljp/git-dirstat/cmd.Version=$(VERSION)
 
 all: test build
 
