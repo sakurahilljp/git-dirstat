@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var Version = "v0.3.0"
+var Version = "v0.0.0"
 
 // NewRootCommand creates the root cobra command.
 func NewRootCommand() *cobra.Command {

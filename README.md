@@ -262,7 +262,7 @@ For in-depth analysis concepts and patterns, see the [Hotspot Analysis Guide](do
 | `--exclude` | `-e` | `[]` | Exclude paths matching glob patterns (`doublestar` syntax). Repeatable. |
 | `--exclude-from` | | `[]` | Exclude paths matching patterns from file(s). Alias: `--exclude-file`. Repeatable. |
 | `--no-color` | | `false` | Suppress ANSI color codes in table output. |
-| `--version` | `-v` | | Print the version (`v0.3.0`). |
+| `--version` | `-v` | | Print the version (`v0.4.0`). |
 | `--help` | `-h` | | Print help and usage information. |
 
 ---

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-09-28
+
 ### Added
 - Added hierarchical Tree View (`--tree` / `-f tree`) rendering directory changes in an indented tree structure with clean Unicode branch lines (`├── `, `└── `, `│   `), integrated with `--stat`, `--percent`, `--graph`, and `--depth`.
 - Added interactive terminal UI browser (`-i` / `--interactive` / `tui` subcommand) powered by `bubbletea` and `lipgloss`:
