@@ -259,10 +259,11 @@ For in-depth analysis concepts and patterns, see the [Hotspot Analysis Guide](do
 | `--percent` | | `false` | Display change percentage column. |
 | `--graph` | | `false` | Display proportional inline change bar graph column. |
 | `--stat` | | `false` | Display both percentage and inline bar graph columns. |
+| `--workers` | `-W` | `1` | Number of concurrent workers for diff patch calculation (`1` = serial, `0` = auto-scale to CPU cores). |
 | `--exclude` | `-e` | `[]` | Exclude paths matching glob patterns (`doublestar` syntax). Repeatable. |
 | `--exclude-from` | | `[]` | Exclude paths matching patterns from file(s). Alias: `--exclude-file`. Repeatable. |
 | `--no-color` | | `false` | Suppress ANSI color codes in table output. |
-| `--version` | `-v` | | Print the version (`v0.4.0`). |
+| `--version` | `-v` | | Print the version (`v0.5.0`). |
 | `--help` | `-h` | | Print help and usage information. |
 
 ---

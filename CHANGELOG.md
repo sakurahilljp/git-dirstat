@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-09-29
+
+### Added
+- Added Worker Pool concurrent patch calculation (`--workers` / `-W`):
+  - Parallelized Myers diff patch generation across multiple goroutines in `gitutil.DiffCommitsStream`, `gitutil.DiffWorkingTreeStream`, and `gitutil.WalkCommitHistoryStream` (`churn`).
+  - Added `-W` / `--workers` flag: defaults to `1` (serial execution to preserve conservative legacy behavior), accepts `0` for auto-scaling to available logical CPU cores (`runtime.GOMAXPROCS(0)`), or custom worker count.
+  - Robust concurrency lifecycle: uses `golang.org/x/sync/errgroup` with cancellable context propagation to prevent worker deadlocks on consumer errors and cleanly join goroutines.
+
 ## [0.4.0] - 2026-09-28
 
 ### Added
