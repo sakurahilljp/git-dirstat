@@ -44,6 +44,7 @@ func ParseAndValidate(cmd *cobra.Command, args []string) (*model.Config, error) 
 
 	tree, _ := cmd.Flags().GetBool("tree")
 	interactive, _ := cmd.Flags().GetBool("interactive")
+	workers, _ := cmd.Flags().GetInt("workers")
 	if tree {
 		format = model.FormatTree
 	}
@@ -121,6 +122,7 @@ func ParseAndValidate(cmd *cobra.Command, args []string) (*model.Config, error) 
 		ShowGraph:   graph,
 		Tree:        tree,
 		Interactive: interactive,
+		Workers:     workers,
 	}, nil
 }
 

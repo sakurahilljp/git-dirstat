@@ -31,7 +31,7 @@ func TestDiffCommitsStream_WithPreFilter(t *testing.T) {
 	pf := filter.NewPathFilter("src/", []string{"vendor/**", "src/vendor/**"})
 
 	var streamedDiffs []model.FileDiff
-	err = DiffCommitsStream(c1, c4, pf, func(d model.FileDiff) error {
+	err = DiffCommitsStream(c1, c4, DiffOptions{PathFilter: pf}, func(d model.FileDiff) error {
 		streamedDiffs = append(streamedDiffs, d)
 		return nil
 	})

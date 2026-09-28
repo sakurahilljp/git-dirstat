@@ -48,7 +48,7 @@ func TestDiffWorkingTreeStream_AllStatus(t *testing.T) {
 	pf := filter.NewPathFilter("", nil)
 
 	var diffs []model.FileDiff
-	err = DiffWorkingTreeStream(repo, head, dir, pf, func(d model.FileDiff) error {
+	err = DiffWorkingTreeStream(repo, head, dir, DiffOptions{PathFilter: pf}, func(d model.FileDiff) error {
 		diffs = append(diffs, d)
 		return nil
 	})

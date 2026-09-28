@@ -2,8 +2,12 @@ package gitutil
 
 import (
 	"container/list"
+	"context"
 	"path/filepath"
+	"runtime"
 	"strings"
+
+	"golang.org/x/sync/errgroup"
 	"time"
 
 	"github.com/go-git/go-git/v5"
@@ -25,6 +29,7 @@ type ChurnWalkOptions struct {
 	NoMerges    bool
 	FirstParent bool
 	Fast        bool
+	Workers     int
 }
 
 // WalkCommitHistoryStream walks commit history and streams diffs per commit.
@@ -105,7 +110,7 @@ func WalkCommitHistoryStream(
 		}
 
 		// Process commit diff
-		diffs, err := extractCommitDiffs(commit, pathFilter, opts.Fast)
+		diffs, err := extractCommitDiffs(commit, opts, pathFilter)
 		if err != nil {
 			return err
 		}
@@ -192,7 +197,7 @@ func collectAncestors(commit *object.Commit, set map[string]struct{}) error {
 	return nil
 }
 
-func extractCommitDiffs(commit *object.Commit, pathFilter *filter.PathFilter, fast bool) ([]model.FileDiff, error) {
+func extractCommitDiffs(commit *object.Commit, opts ChurnWalkOptions, pathFilter *filter.PathFilter) ([]model.FileDiff, error) {
 	toTree, err := commit.Tree()
 	if err != nil {
 		return nil, model.NewRuntimeError("failed to get tree for commit %s: %w", commit.Hash, err)
@@ -200,7 +205,7 @@ func extractCommitDiffs(commit *object.Commit, pathFilter *filter.PathFilter, fa
 
 	if commit.NumParents() == 0 {
 		// Root / initial commit: all files are newly added
-		return extractRootCommitDiffs(toTree, pathFilter, fast)
+		return extractRootCommitDiffs(toTree, opts, pathFilter)
 	}
 
 	parent, err := commit.Parent(0)
@@ -218,6 +223,27 @@ func extractCommitDiffs(commit *object.Commit, pathFilter *filter.PathFilter, fa
 	}
 
 	var results []model.FileDiff
+
+	workers := opts.Workers
+	if workers <= 0 {
+		workers = runtime.GOMAXPROCS(0)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	workerG, ctx := errgroup.WithContext(ctx)
+	workerG.SetLimit(workers)
+
+	resCh := make(chan model.FileDiff, workers*2)
+
+	consumerG, _ := errgroup.WithContext(context.Background())
+	consumerG.Go(func() error {
+		for d := range resCh {
+			results = append(results, d)
+		}
+		return nil
+	})
+
 	for _, change := range changes {
 		fromPath := ""
 		if change.From.Name != "" {
@@ -237,72 +263,80 @@ func extractCommitDiffs(commit *object.Commit, pathFilter *filter.PathFilter, fa
 			filePath = fromPath
 		}
 
-		if fast {
-			// Fast mode skips Myers line diff computation
-			results = append(results, model.FileDiff{
-				Path: filePath,
-			})
+		if opts.Fast {
+			resCh <- model.FileDiff{Path: filePath}
 			continue
 		}
 
-		patch, err := change.Patch()
-		if err != nil {
-			return nil, model.NewRuntimeError("failed to create patch for %s: %w", filePath, err)
-		}
+		filePathCapture := filePath
 
-		for _, fp := range patch.FilePatches() {
-			from, to := fp.Files()
-			isBinary := fp.IsBinary()
-			var added, deleted int
-			if !isBinary {
-				for _, chunk := range fp.Chunks() {
-					switch chunk.Type() {
-					case fdiff.Add:
-						added += countLines(chunk.Content())
-					case fdiff.Delete:
-						deleted += countLines(chunk.Content())
+		workerG.Go(func() error {
+			patch, err := change.Patch()
+			if err != nil {
+				return model.NewRuntimeError("failed to create patch for %s: %w", filePathCapture, err)
+			}
+
+			for _, fp := range patch.FilePatches() {
+				from, to := fp.Files()
+				isBinary := fp.IsBinary()
+				var added, deleted int
+				if !isBinary {
+					for _, chunk := range fp.Chunks() {
+						switch chunk.Type() {
+						case fdiff.Add:
+							added += countLines(chunk.Content())
+						case fdiff.Delete:
+							deleted += countLines(chunk.Content())
+						}
+					}
+				}
+
+				if from != nil && to != nil && from.Path() != to.Path() {
+					if pathFilter == nil || pathFilter.ShouldProcess(from.Path()) {
+						select {
+						case <-ctx.Done():
+							return ctx.Err()
+						case resCh <- model.FileDiff{Path: from.Path(), Deleted: deleted, IsBinary: isBinary}:
+						}
+					}
+					if pathFilter == nil || pathFilter.ShouldProcess(to.Path()) {
+						select {
+						case <-ctx.Done():
+							return ctx.Err()
+						case resCh <- model.FileDiff{Path: to.Path(), Added: added, IsBinary: isBinary}:
+						}
+					}
+				} else {
+					target := filePathCapture
+					if to != nil {
+						target = to.Path()
+					} else if from != nil {
+						target = from.Path()
+					}
+					if pathFilter == nil || pathFilter.ShouldProcess(target) {
+						select {
+						case <-ctx.Done():
+							return ctx.Err()
+						case resCh <- model.FileDiff{Path: target, Added: added, Deleted: deleted, IsBinary: isBinary}:
+						}
 					}
 				}
 			}
-
-			if from != nil && to != nil && from.Path() != to.Path() {
-				if pathFilter == nil || pathFilter.ShouldProcess(from.Path()) {
-					results = append(results, model.FileDiff{
-						Path:     from.Path(),
-						Deleted:  deleted,
-						IsBinary: isBinary,
-					})
-				}
-				if pathFilter == nil || pathFilter.ShouldProcess(to.Path()) {
-					results = append(results, model.FileDiff{
-						Path:     to.Path(),
-						Added:    added,
-						IsBinary: isBinary,
-					})
-				}
-			} else {
-				target := filePath
-				if to != nil {
-					target = to.Path()
-				} else if from != nil {
-					target = from.Path()
-				}
-				if pathFilter == nil || pathFilter.ShouldProcess(target) {
-					results = append(results, model.FileDiff{
-						Path:     target,
-						Added:    added,
-						Deleted:  deleted,
-						IsBinary: isBinary,
-					})
-				}
-			}
-		}
+			return nil
+		})
 	}
 
+	workerErr := workerG.Wait()
+	close(resCh)
+	_ = consumerG.Wait()
+
+	if workerErr != nil && workerErr != context.Canceled {
+		return nil, workerErr
+	}
 	return results, nil
 }
 
-func extractRootCommitDiffs(tree *object.Tree, pathFilter *filter.PathFilter, fast bool) ([]model.FileDiff, error) {
+func extractRootCommitDiffs(tree *object.Tree, opts ChurnWalkOptions, pathFilter *filter.PathFilter) ([]model.FileDiff, error) {
 	var results []model.FileDiff
 	fileIter := tree.Files()
 	defer fileIter.Close()
@@ -313,7 +347,7 @@ func extractRootCommitDiffs(tree *object.Tree, pathFilter *filter.PathFilter, fa
 			return nil
 		}
 
-		if fast {
+		if opts.Fast {
 			results = append(results, model.FileDiff{Path: path})
 			return nil
 		}
@@ -343,5 +377,3 @@ func extractRootCommitDiffs(tree *object.Tree, pathFilter *filter.PathFilter, fa
 
 	return results, err
 }
-
-

@@ -25,6 +25,7 @@ func NewRootCommand() *cobra.Command {
 	var statFlag bool
 	var treeFlag bool
 	var interactiveFlag bool
+	var workersFlag int
 
 	rootCmd := &cobra.Command{
 		Use:           "git-dirstat [OPTIONS] [<commit> [<commit>] | <commit>..<commit> | <commit>...<commit>] [-- <target-path>]",
@@ -79,9 +80,9 @@ func NewRootCommand() *cobra.Command {
 
 				pathFilter := treeAgg.PathFilter()
 				if resolved.IsWorkingTree {
-					err = gitutil.DiffWorkingTreeStream(repoCtx.Repo, resolved.HeadCommit, repoCtx.RepoRoot, pathFilter, treeAgg.Consume)
+					err = gitutil.DiffWorkingTreeStream(repoCtx.Repo, resolved.HeadCommit, repoCtx.RepoRoot, gitutil.DiffOptions{PathFilter: pathFilter, Workers: cfg.Workers}, treeAgg.Consume)
 				} else {
-					err = gitutil.DiffCommitsStream(resolved.FromCommit, resolved.ToCommit, pathFilter, treeAgg.Consume)
+					err = gitutil.DiffCommitsStream(resolved.FromCommit, resolved.ToCommit, gitutil.DiffOptions{PathFilter: pathFilter, Workers: cfg.Workers}, treeAgg.Consume)
 				}
 				if err != nil {
 					return err
@@ -114,9 +115,9 @@ func NewRootCommand() *cobra.Command {
 
 			// 5. Stream Diff & Aggregate
 			if resolved.IsWorkingTree {
-				err = gitutil.DiffWorkingTreeStream(repoCtx.Repo, resolved.HeadCommit, repoCtx.RepoRoot, pathFilter, agg.Consume)
+				err = gitutil.DiffWorkingTreeStream(repoCtx.Repo, resolved.HeadCommit, repoCtx.RepoRoot, gitutil.DiffOptions{PathFilter: pathFilter, Workers: cfg.Workers}, agg.Consume)
 			} else {
-				err = gitutil.DiffCommitsStream(resolved.FromCommit, resolved.ToCommit, pathFilter, agg.Consume)
+				err = gitutil.DiffCommitsStream(resolved.FromCommit, resolved.ToCommit, gitutil.DiffOptions{PathFilter: pathFilter, Workers: cfg.Workers}, agg.Consume)
 			}
 			if err != nil {
 				return err
@@ -162,6 +163,7 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.Flags().BoolVar(&statFlag, "stat", false, "Show both percentage and inline bar graph")
 	rootCmd.Flags().BoolVar(&treeFlag, "tree", false, "Output hierarchical tree view")
 	rootCmd.Flags().BoolVarP(&interactiveFlag, "interactive", "i", false, "Start interactive TUI browser")
+	rootCmd.Flags().IntVarP(&workersFlag, "workers", "W", 1, "Number of concurrent workers for diff calculation (1 = serial, 0 = auto)")
 
 	rootCmd.AddCommand(NewChurnCommand())
 	rootCmd.AddCommand(NewTUICommand())

@@ -2,10 +2,14 @@ package gitutil
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+
+	"golang.org/x/sync/errgroup"
 
 	"github.com/go-git/go-git/v5"
 	fdiff "github.com/go-git/go-git/v5/plumbing/format/diff"
@@ -17,6 +21,12 @@ import (
 	"github.com/sergi/go-diff/diffmatchpatch"
 )
 
+// DiffOptions configures diff computation behavior.
+type DiffOptions struct {
+	PathFilter *filter.PathFilter
+	Workers    int
+}
+
 // DiffConsumer is a callback that receives individual file diffs as they are computed.
 type DiffConsumer func(diff model.FileDiff) error
 
@@ -24,7 +34,7 @@ type DiffConsumer func(diff model.FileDiff) error
 // Retained for backward compatibility; internally delegates to DiffCommitsStream.
 func DiffCommits(fromCommit, toCommit *object.Commit) ([]model.FileDiff, error) {
 	var results []model.FileDiff
-	err := DiffCommitsStream(fromCommit, toCommit, nil, func(d model.FileDiff) error {
+	err := DiffCommitsStream(fromCommit, toCommit, DiffOptions{}, func(d model.FileDiff) error {
 		results = append(results, d)
 		return nil
 	})
@@ -35,11 +45,11 @@ func DiffCommits(fromCommit, toCommit *object.Commit) ([]model.FileDiff, error) 
 }
 
 // DiffCommitsStream streams file diffs between two commits through the consumer callback.
-// If pathFilter is non-nil, files outside target or matching exclude patterns are skipped
+// If opts.PathFilter is non-nil, files outside target or matching exclude patterns are skipped
 // before Myers diff patch generation, drastically saving memory and CPU time.
 func DiffCommitsStream(
 	fromCommit, toCommit *object.Commit,
-	pathFilter *filter.PathFilter,
+	opts DiffOptions,
 	consumer DiffConsumer,
 ) error {
 	fromTree, err := fromCommit.Tree()
@@ -56,6 +66,30 @@ func DiffCommitsStream(
 		return model.NewRuntimeError("failed to diff trees: %w", err)
 	}
 
+	workers := opts.Workers
+	if workers <= 0 {
+		workers = runtime.GOMAXPROCS(0)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	workerG, ctx := errgroup.WithContext(ctx)
+	workerG.SetLimit(workers)
+
+	results := make(chan model.FileDiff, workers*2)
+
+	consumerErr := make(chan error, 1)
+	go func() {
+		for d := range results {
+			if err := consumer(d); err != nil {
+				consumerErr <- err
+				cancel()
+				return
+			}
+		}
+		consumerErr <- nil
+	}()
+
 	for _, change := range changes {
 		fromPath := ""
 		if change.From.Name != "" {
@@ -66,81 +100,84 @@ func DiffCommitsStream(
 			toPath = filepath.ToSlash(change.To.Name)
 		}
 
-		// Pre-filtering: if neither fromPath nor toPath should be processed,
-		// skip the expensive patch computation entirely.
-		if pathFilter != nil && !pathFilter.ShouldProcessChange(fromPath, toPath) {
+		// Pre-filtering
+		if opts.PathFilter != nil && !opts.PathFilter.ShouldProcessChange(fromPath, toPath) {
 			continue
 		}
 
-		// Compute patch individually per file to avoid holding all patches in memory
-		patchName := toPath
-		if patchName == "" {
-			patchName = fromPath
-		}
-		patch, err := change.Patch()
-		if err != nil {
-			return model.NewRuntimeError("failed to create patch for %s: %w", patchName, err)
-		}
+		fromPathCapture := fromPath
+		toPathCapture := toPath
 
-		for _, fp := range patch.FilePatches() {
-			from, to := fp.Files()
-			isBinary := fp.IsBinary()
+		workerG.Go(func() error {
+			patchName := toPathCapture
+			if patchName == "" {
+				patchName = fromPathCapture
+			}
+			patch, err := change.Patch()
+			if err != nil {
+				return model.NewRuntimeError("failed to create patch for %s: %w", patchName, err)
+			}
 
-			var added, deleted int
-			if !isBinary {
-				for _, chunk := range fp.Chunks() {
-					switch chunk.Type() {
-					case fdiff.Add:
-						added += countLines(chunk.Content())
-					case fdiff.Delete:
-						deleted += countLines(chunk.Content())
+			for _, fp := range patch.FilePatches() {
+				from, to := fp.Files()
+				isBinary := fp.IsBinary()
+
+				var added, deleted int
+				if !isBinary {
+					for _, chunk := range fp.Chunks() {
+						switch chunk.Type() {
+						case fdiff.Add:
+							added += countLines(chunk.Content())
+						case fdiff.Delete:
+							deleted += countLines(chunk.Content())
+						}
+					}
+				}
+
+				if from != nil && to != nil && from.Path() != to.Path() {
+					// Moved / renamed without rename detection
+					if opts.PathFilter == nil || opts.PathFilter.ShouldProcess(from.Path()) {
+						select {
+						case <-ctx.Done():
+							return ctx.Err()
+						case results <- model.FileDiff{Path: from.Path(), Added: 0, Deleted: deleted, IsBinary: isBinary}:
+						}
+					}
+					if opts.PathFilter == nil || opts.PathFilter.ShouldProcess(to.Path()) {
+						select {
+						case <-ctx.Done():
+							return ctx.Err()
+						case results <- model.FileDiff{Path: to.Path(), Added: added, Deleted: 0, IsBinary: isBinary}:
+						}
+					}
+				} else {
+					filePath := ""
+					if to != nil {
+						filePath = to.Path()
+					} else if from != nil {
+						filePath = from.Path()
+					}
+					if opts.PathFilter == nil || opts.PathFilter.ShouldProcess(filePath) {
+						select {
+						case <-ctx.Done():
+							return ctx.Err()
+						case results <- model.FileDiff{Path: filePath, Added: added, Deleted: deleted, IsBinary: isBinary}:
+						}
 					}
 				}
 			}
+			return nil
+		})
+	}
 
-			if from != nil && to != nil && from.Path() != to.Path() {
-				// Moved / renamed without rename detection:
-				// delete from old path, add to new path
-				if pathFilter == nil || pathFilter.ShouldProcess(from.Path()) {
-					if err := consumer(model.FileDiff{
-						Path:     from.Path(),
-						Added:    0,
-						Deleted:  deleted,
-						IsBinary: isBinary,
-					}); err != nil {
-						return err
-					}
-				}
-				if pathFilter == nil || pathFilter.ShouldProcess(to.Path()) {
-					if err := consumer(model.FileDiff{
-						Path:     to.Path(),
-						Added:    added,
-						Deleted:  0,
-						IsBinary: isBinary,
-					}); err != nil {
-						return err
-					}
-				}
-			} else {
-				filePath := ""
-				if to != nil {
-					filePath = to.Path()
-				} else if from != nil {
-					filePath = from.Path()
-				}
+	workerErr := workerG.Wait()
+	close(results)
 
-				if pathFilter == nil || pathFilter.ShouldProcess(filePath) {
-					if err := consumer(model.FileDiff{
-						Path:     filePath,
-						Added:    added,
-						Deleted:  deleted,
-						IsBinary: isBinary,
-					}); err != nil {
-						return err
-					}
-				}
-			}
-		}
+	if err := <-consumerErr; err != nil {
+		return err
+	}
+	if workerErr != nil && workerErr != context.Canceled {
+		return workerErr
 	}
 
 	return nil
@@ -151,7 +188,7 @@ func DiffCommitsStream(
 // Retained for backward compatibility; internally delegates to DiffWorkingTreeStream.
 func DiffWorkingTree(repo *git.Repository, headCommit *object.Commit, repoRoot string) ([]model.FileDiff, error) {
 	var results []model.FileDiff
-	err := DiffWorkingTreeStream(repo, headCommit, repoRoot, nil, func(d model.FileDiff) error {
+	err := DiffWorkingTreeStream(repo, headCommit, repoRoot, DiffOptions{}, func(d model.FileDiff) error {
 		results = append(results, d)
 		return nil
 	})
@@ -167,7 +204,7 @@ func DiffWorkingTreeStream(
 	repo *git.Repository,
 	headCommit *object.Commit,
 	repoRoot string,
-	pathFilter *filter.PathFilter,
+	opts DiffOptions,
 	consumer DiffConsumer,
 ) error {
 	wt, err := repo.Worktree()
@@ -185,6 +222,30 @@ func DiffWorkingTreeStream(
 		return model.NewRuntimeError("failed to get HEAD tree: %w", err)
 	}
 
+	workers := opts.Workers
+	if workers <= 0 {
+		workers = runtime.GOMAXPROCS(0)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	workerG, ctx := errgroup.WithContext(ctx)
+	workerG.SetLimit(workers)
+
+	results := make(chan model.FileDiff, workers*2)
+
+	consumerErr := make(chan error, 1)
+	go func() {
+		for d := range results {
+			if err := consumer(d); err != nil {
+				consumerErr <- err
+				cancel()
+				return
+			}
+		}
+		consumerErr <- nil
+	}()
+
 	for filePath, fileStatus := range status {
 		// Untracked files are excluded
 		if fileStatus.Staging == git.Untracked && fileStatus.Worktree == git.Untracked {
@@ -200,146 +261,140 @@ func DiffWorkingTreeStream(
 		// Normalize filePath to forward slash
 		normPath := filepath.ToSlash(filePath)
 
-		// Early pre-filtering: skip files outside target or matching exclude patterns
-		if pathFilter != nil && !pathFilter.ShouldProcess(normPath) {
+		// Early pre-filtering
+		if opts.PathFilter != nil && !opts.PathFilter.ShouldProcess(normPath) {
 			continue
 		}
 
-		fullDiskPath := filepath.Join(repoRoot, filepath.FromSlash(normPath))
+		normPathCapture := normPath
 
-		// Check if file exists in HEAD
-		var headFile *object.File
-		headExists := false
-		headIsBinary := false
-		if f, err := headTree.File(normPath); err == nil && f != nil {
-			headFile = f
-			headExists = true
-			isBin, _ := f.IsBinary()
-			headIsBinary = isBin
-		}
+		workerG.Go(func() error {
+			fullDiskPath := filepath.Join(repoRoot, filepath.FromSlash(normPathCapture))
 
-		// Check if file exists on disk
-		diskExists := false
-		diskIsBinary := false
-		var fileInfo os.FileInfo
-		if fi, statErr := os.Stat(fullDiskPath); statErr == nil && !fi.IsDir() {
-			diskExists = true
-			fileInfo = fi
-			bin, binErr := isFileBinary(fullDiskPath)
-			if binErr == nil && bin {
-				diskIsBinary = true
+			// Check if file exists in HEAD
+			var headFile *object.File
+			headExists := false
+			headIsBinary := false
+			if f, err := headTree.File(normPathCapture); err == nil && f != nil {
+				headFile = f
+				headExists = true
+				isBin, _ := f.IsBinary()
+				headIsBinary = isBin
 			}
-		}
 
-		// Case 1: Deleted file (exists in HEAD, missing on disk)
-		if headExists && !diskExists {
-			if headIsBinary {
-				if err := consumer(model.FileDiff{
-					Path:     normPath,
-					Added:    0,
-					Deleted:  0,
-					IsBinary: true,
-				}); err != nil {
-					return err
-				}
-			} else {
-				deletedLines, err := countFileLinesFromObject(headFile)
-				if err != nil {
-					return model.NewRuntimeError("failed to read deleted file %s: %w", normPath, err)
-				}
-				if err := consumer(model.FileDiff{
-					Path:     normPath,
-					Added:    0,
-					Deleted:  deletedLines,
-					IsBinary: false,
-				}); err != nil {
-					return err
+			// Check if file exists on disk
+			diskExists := false
+			diskIsBinary := false
+			var fileInfo os.FileInfo
+			if fi, statErr := os.Stat(fullDiskPath); statErr == nil && !fi.IsDir() {
+				diskExists = true
+				fileInfo = fi
+				bin, binErr := isFileBinary(fullDiskPath)
+				if binErr == nil && bin {
+					diskIsBinary = true
 				}
 			}
-			continue
-		}
 
-		// Case 2: Added file (missing in HEAD, exists on disk and tracked/staged)
-		if !headExists && diskExists {
-			if diskIsBinary {
-				if err := consumer(model.FileDiff{
-					Path:     normPath,
-					Added:    0,
-					Deleted:  0,
-					IsBinary: true,
-				}); err != nil {
-					return err
-				}
-			} else {
-				addedLines, err := countFileLinesFromDisk(fullDiskPath)
-				if err != nil {
-					return model.NewRuntimeError("failed to read added file %s: %w", normPath, err)
-				}
-				if err := consumer(model.FileDiff{
-					Path:     normPath,
-					Added:    addedLines,
-					Deleted:  0,
-					IsBinary: false,
-				}); err != nil {
-					return err
-				}
-			}
-			continue
-		}
-
-		// Case 3: Modified file (exists in both)
-		if headExists && diskExists {
-			if headIsBinary || diskIsBinary {
-				identical, err := compareBinaryFiles(headFile, fullDiskPath, fileInfo)
-				if err != nil {
-					return model.NewRuntimeError("failed to compare binary files %s: %w", normPath, err)
-				}
-				if !identical {
-					if err := consumer(model.FileDiff{
-						Path:     normPath,
-						Added:    0,
-						Deleted:  0,
-						IsBinary: true,
-					}); err != nil {
-						return err
+			// Case 1: Deleted file
+			if headExists && !diskExists {
+				if headIsBinary {
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case results <- model.FileDiff{Path: normPathCapture, Added: 0, Deleted: 0, IsBinary: true}:
+					}
+				} else {
+					deletedLines, err := countFileLinesFromObject(headFile)
+					if err != nil {
+						return model.NewRuntimeError("failed to read deleted file %s: %w", normPathCapture, err)
+					}
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case results <- model.FileDiff{Path: normPathCapture, Added: 0, Deleted: deletedLines, IsBinary: false}:
 					}
 				}
-			} else {
-				headContent, err := headFile.Contents()
-				if err != nil {
-					return model.NewRuntimeError("failed to read HEAD content for %s: %w", normPath, err)
-				}
-				contentBytes, err := os.ReadFile(fullDiskPath)
-				if err != nil {
-					return model.NewRuntimeError("failed to read disk content for %s: %w", normPath, err)
-				}
-				diskContent := string(contentBytes)
+				return nil
+			}
 
-				if headContent == diskContent {
-					// Content identical, skip
-					continue
-				}
-
-				diffs := diff.Do(headContent, diskContent)
-				var added, deleted int
-				for _, d := range diffs {
-					switch d.Type {
-					case diffmatchpatch.DiffInsert:
-						added += countLines(d.Text)
-					case diffmatchpatch.DiffDelete:
-						deleted += countLines(d.Text)
+			// Case 2: Added file
+			if !headExists && diskExists {
+				if diskIsBinary {
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case results <- model.FileDiff{Path: normPathCapture, Added: 0, Deleted: 0, IsBinary: true}:
+					}
+				} else {
+					addedLines, err := countFileLinesFromDisk(fullDiskPath)
+					if err != nil {
+						return model.NewRuntimeError("failed to read added file %s: %w", normPathCapture, err)
+					}
+					select {
+					case <-ctx.Done():
+						return ctx.Err()
+					case results <- model.FileDiff{Path: normPathCapture, Added: addedLines, Deleted: 0, IsBinary: false}:
 					}
 				}
-				if err := consumer(model.FileDiff{
-					Path:     normPath,
-					Added:    added,
-					Deleted:  deleted,
-					IsBinary: false,
-				}); err != nil {
-					return err
+				return nil
+			}
+
+			// Case 3: Modified file
+			if headExists && diskExists {
+				if headIsBinary || diskIsBinary {
+					identical, err := compareBinaryFiles(headFile, fullDiskPath, fileInfo)
+					if err != nil {
+						return model.NewRuntimeError("failed to compare binary files %s: %w", normPathCapture, err)
+					}
+					if !identical {
+						select {
+						case <-ctx.Done():
+							return ctx.Err()
+						case results <- model.FileDiff{Path: normPathCapture, Added: 0, Deleted: 0, IsBinary: true}:
+						}
+					}
+				} else {
+					headContent, err := headFile.Contents()
+					if err != nil {
+						return model.NewRuntimeError("failed to read HEAD content for %s: %w", normPathCapture, err)
+					}
+					contentBytes, err := os.ReadFile(fullDiskPath)
+					if err != nil {
+						return model.NewRuntimeError("failed to read disk content for %s: %w", normPathCapture, err)
+					}
+					diskContent := string(contentBytes)
+
+					if headContent != diskContent {
+						diffs := diff.Do(headContent, diskContent)
+						var added, deleted int
+						for _, d := range diffs {
+							switch d.Type {
+							case diffmatchpatch.DiffInsert:
+								added += countLines(d.Text)
+							case diffmatchpatch.DiffDelete:
+								deleted += countLines(d.Text)
+							}
+						}
+						select {
+						case <-ctx.Done():
+							return ctx.Err()
+						case results <- model.FileDiff{Path: normPathCapture, Added: added, Deleted: deleted, IsBinary: false}:
+						}
+					}
 				}
 			}
-		}
+			return nil
+		})
+	}
+
+	workerErr := workerG.Wait()
+	close(results)
+
+	if err := <-consumerErr; err != nil {
+		return err
+	}
+	if workerErr != nil && workerErr != context.Canceled {
+		return workerErr
 	}
 
 	return nil

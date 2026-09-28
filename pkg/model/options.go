@@ -35,6 +35,7 @@ type Config struct {
 	ShowGraph   bool
 	Tree        bool
 	Interactive bool
+	Workers     int
 }
 
 // ChurnConfig represents all resolved options for running git-dirstat churn/hotspot.

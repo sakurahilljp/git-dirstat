@@ -92,9 +92,9 @@ func RunInteractiveTUI(cmd *cobra.Command, args []string) error {
 	pathFilter := treeAgg.PathFilter()
 
 	if resolved.IsWorkingTree {
-		err = gitutil.DiffWorkingTreeStream(repoCtx.Repo, resolved.HeadCommit, repoCtx.RepoRoot, pathFilter, treeAgg.Consume)
+		err = gitutil.DiffWorkingTreeStream(repoCtx.Repo, resolved.HeadCommit, repoCtx.RepoRoot, gitutil.DiffOptions{PathFilter: pathFilter, Workers: cfg.Workers}, treeAgg.Consume)
 	} else {
-		err = gitutil.DiffCommitsStream(resolved.FromCommit, resolved.ToCommit, pathFilter, treeAgg.Consume)
+		err = gitutil.DiffCommitsStream(resolved.FromCommit, resolved.ToCommit, gitutil.DiffOptions{PathFilter: pathFilter, Workers: cfg.Workers}, treeAgg.Consume)
 	}
 	if err != nil {
 		return err
