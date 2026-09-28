@@ -1,7 +1,7 @@
 ---
 name: code-reviewer
 description: Specialized code reviewer for inspecting Go source code, architectural integrity, test coverage, resource safety, and strict specification conformance.
-model: claude-opus-4-6-thinking
+model: pro
 tools:
   - view_file
   - find_by_name
