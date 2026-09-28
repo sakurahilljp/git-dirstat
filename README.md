@@ -23,9 +23,12 @@ Built entirely on pure Go ([go-git](https://github.com/go-git/go-git)), `git-dir
   - Direct root file grouping (`(root files)` / `<target>/ (root files)`).
 - **Multiple Output Formats**:
   - **Table**: Formatted ANSI-colored CLI table with thousand separators and automatic TTY detection.
+  - **Tree View (`--tree` / `-f tree`)**: Indented hierarchical directory tree with clean Unicode branch lines.
+  - **Markdown (`-f markdown`)**: GFM table format ready for GitHub PR comments and summaries.
   - **JSON**: Machine-readable JSON output with detailed per-directory statistics.
   - **CSV / TSV**: Delimited plain text for spreadsheet analysis and CI/CD pipelines.
-- **Flexible Sorting**: Sort results by `added` (default), `deleted`, `net`, `files`, or `path`, with reverse order support (`--reverse` / `-r`).
+- **Interactive TUI Browser (`-i` / `tui`)**: Interactive terminal UI (powered by `bubbletea` & `lipgloss`) for expanding/collapsing directories, dynamic sorting, live filtering, and file details inspection.
+- **Flexible Sorting**: Sort results by `added` (default), `deleted`, `net`, `files`, `percent`, or `path`, with reverse order support (`--reverse` / `-r`).
 - **Hotspot & Code Churn Analysis (`churn` / `hotspot`)**: Walk commit history to detect frequently modified directories, cumulative code churn, and refactoring hotspots ([User Guide](docs/hotspot-analysis-guide.md)).
 - **Binary File Support**: Modified binary files (e.g. images, archives, compiled binaries) are counted in `Files` (`+1`), with line counts set to zero (`Added: 0`, `Deleted: 0`, `Net: 0`).
 
@@ -189,7 +192,35 @@ git-dirstat --percent
 git-dirstat --graph
 ```
 
-#### 10. Hotspot & Code Churn Analysis (`churn` / `hotspot`)
+#### 10. Hierarchical Tree View (`--tree` / `-f tree`)
+Visualize directory hierarchy with clean Unicode branch lines:
+```bash
+# Output full tree view with stat bars
+git-dirstat --tree --stat
+
+# Scope depth in tree view
+git-dirstat --tree -d 2
+
+# Output as tree format
+git-dirstat -f tree
+```
+
+#### 11. Interactive TUI Browser (`-i` / `tui`)
+Explore and drill down into directory changes with a full-featured terminal UI:
+```bash
+# Launch interactive mode
+git-dirstat -i
+# or via subcommand
+git-dirstat tui
+
+# Compare commits in TUI
+git-dirstat tui main..feature
+```
+- **Navigation**: `↑`/`↓` (`k`/`j`) to move cursor, `Space`/`Enter` to toggle directory expansion.
+- **Actions**: `o`/`O` to expand/collapse all, `s` to cycle sort fields, `p` to toggle percent, `g` to toggle graphs, `/` to filter paths, `?` for help, `q` to quit.
+- **Two-Pane Layout**: Browse the tree on the left, and inspect direct modified files with individual line diffs on the right.
+
+#### 12. Hotspot & Code Churn Analysis (`churn` / `hotspot`)
 Inspect historical commit frequency and cumulative code modifications:
 ```bash
 # Analyze repository commit history (default: HEAD)
@@ -222,7 +253,9 @@ For in-depth analysis concepts and patterns, see the [Hotspot Analysis Guide](do
 | `--depth` | `-d` | `1` | Directory tree depth relative to target path (must be $\ge 1$). |
 | `--sort` | `-s` | `added` | Sort column: `added`, `deleted`, `net`, `files`, `path`, or `percent`. |
 | `--reverse` | `-r` | `false` | Sort in ascending order instead of descending. |
-| `--format` | `-f` | `table` | Output format: `table`, `json`, `csv`, `tsv`, or `markdown` (alias: `md`). |
+| `--format` | `-f` | `table` | Output format: `table`, `json`, `csv`, `tsv`, `markdown` (alias: `md`), or `tree`. |
+| `--tree` | | `false` | Output hierarchical tree view with Unicode branch lines. |
+| `--interactive` | `-i` | `false` | Launch interactive terminal UI (TUI) to explore directory hierarchy. |
 | `--percent` | | `false` | Display change percentage column. |
 | `--graph` | | `false` | Display proportional inline change bar graph column. |
 | `--stat` | | `false` | Display both percentage and inline bar graph columns. |

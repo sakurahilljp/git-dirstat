@@ -17,6 +17,7 @@ const (
 	FormatCSV      = "csv"
 	FormatTSV      = "tsv"
 	FormatMarkdown = "markdown"
+	FormatTree     = "tree"
 )
 
 // Entry represents an aggregated directory or root files bucket.

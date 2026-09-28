@@ -23,6 +23,8 @@ func NewRootCommand() *cobra.Command {
 	var percentFlag bool
 	var graphFlag bool
 	var statFlag bool
+	var treeFlag bool
+	var interactiveFlag bool
 
 	rootCmd := &cobra.Command{
 		Use:           "git-dirstat [OPTIONS] [<commit> [<commit>] | <commit>..<commit> | <commit>...<commit>] [-- <target-path>]",
@@ -36,6 +38,11 @@ func NewRootCommand() *cobra.Command {
 			cfg, err := ParseAndValidate(cmd, args)
 			if err != nil {
 				return err
+			}
+
+			// If interactive mode requested, invoke TUI handler
+			if cfg.Interactive {
+				return RunInteractiveTUI(cmd, args)
 			}
 
 			cwd, err := os.Getwd()
@@ -55,7 +62,41 @@ func NewRootCommand() *cobra.Command {
 				return err
 			}
 
-			// 3. Setup Stream Aggregator & Pre-filter
+			// 3. Tree output mode (--tree or -f tree)
+			if cfg.Tree || cfg.Format == model.FormatTree {
+				treeAgg, err := aggregator.NewTreeAggregator(aggregator.AggregatorOptions{
+					RepoRoot:   repoCtx.RepoRoot,
+					Cwd:        cwd,
+					TargetPath: cfg.TargetPath,
+					Depth:      cfg.Depth,
+					Sort:       cfg.Sort,
+					Reverse:    cfg.Reverse,
+					Exclude:    cfg.Exclude,
+				})
+				if err != nil {
+					return err
+				}
+
+				pathFilter := treeAgg.PathFilter()
+				if resolved.IsWorkingTree {
+					err = gitutil.DiffWorkingTreeStream(repoCtx.Repo, resolved.HeadCommit, repoCtx.RepoRoot, pathFilter, treeAgg.Consume)
+				} else {
+					err = gitutil.DiffCommitsStream(resolved.FromCommit, resolved.ToCommit, pathFilter, treeAgg.Consume)
+				}
+				if err != nil {
+					return err
+				}
+
+				report, err := treeAgg.Result()
+				if err != nil {
+					return err
+				}
+
+				tf := formatter.NewTreeFormatterWithOptions(cfg.NoColor, cfg.ShowPercent, cfg.ShowGraph, cfg.Depth)
+				return tf.Format(cmd.OutOrStdout(), report)
+			}
+
+			// 4. Setup Stream Aggregator & Pre-filter for flat reports
 			agg, err := aggregator.NewStreamAggregator(aggregator.AggregatorOptions{
 				RepoRoot:   repoCtx.RepoRoot,
 				Cwd:        cwd,
@@ -71,7 +112,7 @@ func NewRootCommand() *cobra.Command {
 
 			pathFilter := agg.PathFilter()
 
-			// 4. Stream Diff & Aggregate
+			// 5. Stream Diff & Aggregate
 			if resolved.IsWorkingTree {
 				err = gitutil.DiffWorkingTreeStream(repoCtx.Repo, resolved.HeadCommit, repoCtx.RepoRoot, pathFilter, agg.Consume)
 			} else {
@@ -86,7 +127,7 @@ func NewRootCommand() *cobra.Command {
 				return err
 			}
 
-			// 5. Format & Output
+			// 6. Format & Output
 			var f formatter.Formatter
 			switch cfg.Format {
 			case model.FormatJSON:
@@ -111,7 +152,7 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.Flags().IntVarP(&depthFlag, "depth", "d", 1, "Directory tree depth relative to target path")
 	rootCmd.Flags().StringVarP(&sortFlag, "sort", "s", "added", "Sort field: files, added, deleted, net, path, percent")
 	rootCmd.Flags().BoolVarP(&reverseFlag, "reverse", "r", false, "Sort in ascending order (default: descending)")
-	rootCmd.Flags().StringVarP(&formatFlag, "format", "f", "table", "Output format: table, json, csv, tsv, markdown")
+	rootCmd.Flags().StringVarP(&formatFlag, "format", "f", "table", "Output format: table, json, csv, tsv, markdown, tree")
 	rootCmd.Flags().StringArrayP("exclude", "e", []string{}, "File/path patterns to exclude (doublestar ** format)")
 	rootCmd.Flags().StringArray("exclude-from", []string{}, "File containing patterns to exclude (one per line, # for comments)")
 	rootCmd.Flags().StringArray("exclude-file", []string{}, "Alias for --exclude-from")
@@ -119,8 +160,11 @@ func NewRootCommand() *cobra.Command {
 	rootCmd.Flags().BoolVar(&percentFlag, "percent", false, "Show change percentage column")
 	rootCmd.Flags().BoolVar(&graphFlag, "graph", false, "Show inline change bar graph")
 	rootCmd.Flags().BoolVar(&statFlag, "stat", false, "Show both percentage and inline bar graph")
+	rootCmd.Flags().BoolVar(&treeFlag, "tree", false, "Output hierarchical tree view")
+	rootCmd.Flags().BoolVarP(&interactiveFlag, "interactive", "i", false, "Start interactive TUI browser")
 
 	rootCmd.AddCommand(NewChurnCommand())
+	rootCmd.AddCommand(NewTUICommand())
 
 	return rootCmd
 }

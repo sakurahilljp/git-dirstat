@@ -2,4 +2,5 @@ dist/
 git-dirstat
 git-dirstat.exe
 *.out
+*.html
 

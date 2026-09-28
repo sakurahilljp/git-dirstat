@@ -34,12 +34,18 @@ func ParseAndValidate(cmd *cobra.Command, args []string) (*model.Config, error) 
 		return nil, model.NewInputError("invalid format flag: %w", err)
 	}
 	switch format {
-	case model.FormatTable, model.FormatJSON, model.FormatCSV, model.FormatTSV, model.FormatMarkdown, "md":
+	case model.FormatTable, model.FormatJSON, model.FormatCSV, model.FormatTSV, model.FormatMarkdown, "md", model.FormatTree:
 		if format == "md" {
 			format = model.FormatMarkdown
 		}
 	default:
-		return nil, model.NewInputError("invalid format: %q (allowed: table, json, csv, tsv, markdown)", format)
+		return nil, model.NewInputError("invalid format: %q (allowed: table, json, csv, tsv, markdown, tree)", format)
+	}
+
+	tree, _ := cmd.Flags().GetBool("tree")
+	interactive, _ := cmd.Flags().GetBool("interactive")
+	if tree {
+		format = model.FormatTree
 	}
 
 	reverse, _ := cmd.Flags().GetBool("reverse")
@@ -113,6 +119,8 @@ func ParseAndValidate(cmd *cobra.Command, args []string) (*model.Config, error) 
 		NoColor:     noColor,
 		ShowPercent: percent,
 		ShowGraph:   graph,
+		Tree:        tree,
+		Interactive: interactive,
 	}, nil
 }
 

@@ -28,6 +28,8 @@ func newTestCmd() *cobra.Command {
 	cmd.Flags().Bool("percent", false, "Show percent")
 	cmd.Flags().Bool("graph", false, "Show graph")
 	cmd.Flags().Bool("stat", false, "Show stat")
+	cmd.Flags().Bool("tree", false, "Tree view")
+	cmd.Flags().BoolP("interactive", "i", false, "Interactive TUI")
 	return cmd
 }
 
@@ -399,6 +401,8 @@ func TestParseAndValidate_Format(t *testing.T) {
 		{"tsv", []string{"-f", "tsv"}, model.FormatTSV},
 		{"markdown", []string{"-f", "markdown"}, model.FormatMarkdown},
 		{"md", []string{"-f", "md"}, model.FormatMarkdown},
+		{"tree", []string{"-f", "tree"}, model.FormatTree},
+		{"tree-flag", []string{"--tree"}, model.FormatTree},
 	}
 
 	for _, tt := range tests {
@@ -413,5 +417,23 @@ func TestParseAndValidate_Format(t *testing.T) {
 				t.Errorf("expected format %q, got %q", tt.wantFormat, cfg.Format)
 			}
 		})
+	}
+}
+
+func TestParseAndValidate_TreeAndInteractive(t *testing.T) {
+	cmd := newTestCmd()
+	_ = cmd.ParseFlags([]string{"--tree", "-i"})
+	cfg, err := ParseAndValidate(cmd, []string{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.Tree {
+		t.Errorf("expected cfg.Tree to be true")
+	}
+	if !cfg.Interactive {
+		t.Errorf("expected cfg.Interactive to be true")
+	}
+	if cfg.Format != model.FormatTree {
+		t.Errorf("expected cfg.Format to be tree, got %q", cfg.Format)
 	}
 }

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added hierarchical Tree View (`--tree` / `-f tree`) rendering directory changes in an indented tree structure with clean Unicode branch lines (`├── `, `└── `, `│   `), integrated with `--stat`, `--percent`, `--graph`, and `--depth`.
+- Added interactive terminal UI browser (`-i` / `--interactive` / `tui` subcommand) powered by `bubbletea` and `lipgloss`:
+  - 2-pane layout displaying interactive directory tree navigation on the left and direct modified file diffs on the right.
+  - Interactive controls: `↑`/`↓`/`j`/`k` navigation, `Space`/`Enter` expand/collapse, `o`/`O` expand/collapse all, `s` cycle sort fields, `p` toggle percent, `g` toggle graph, `/` live path filtering, `?` help modal overlay, and `q` quit.
+  - Graceful fallback and error reporting in non-terminal / pipe environments.
+- Added `pkg/model/tree.go` defining `TreeNode` and `TreeReport`.
+- Added `pkg/aggregator/tree.go` implementing `TreeAggregator` for hierarchical Trie construction, bottom-up roll-up calculations, and sorting.
+- Added `pkg/formatter/tree.go` implementing `TreeFormatter` for formatted CLI tree rendering.
+- Added `pkg/tui` package containing Elm-architecture Bubbletea application model, styles, and headless test suite.
+
 ## [0.3.0] - 2026-09-28
 
 ### Changed
