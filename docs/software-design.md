@@ -16,7 +16,7 @@ This document specifies the software architecture, modular decomposition, data m
 ## 2. System Architecture & High-Level Design
 
 ### 2.1 Layered Architecture
-The application is structured into four primary layers: the CLI Layer, Core Engine Pipeline, Domain Models, and Presentation Layer.
+The application is structured into five primary layers: the CLI Layer, Core Engine Pipeline, Domain Models, Presentation Layer, and Interactive TUI Layer.
 
 ```mermaid
 flowchart TD
@@ -24,6 +24,8 @@ flowchart TD
         Main[main.go: Entry point & Exit Code mapping]
         CmdRoot[cmd/root.go: Cobra command definition & execution]
         CmdArgs[cmd/args.go: Positional & flag argument parsing]
+        CmdChurn[cmd/churn.go: Churn & hotspot subcommand]
+        CmdTUI[cmd/tui.go: Interactive TUI subcommand]
     end
 
     subgraph Core Engine Pipeline
@@ -31,37 +33,67 @@ flowchart TD
         GitResolve[pkg/gitutil/resolver.go: Revision & merge-base resolution]
         PathFilter[pkg/filter/filter.go: Pre-filtering target & exclude patterns]
         GitDiff[pkg/gitutil/diff.go: Streaming commit & working tree diff extraction]
-        Aggregator[pkg/aggregator/aggregator.go: StreamAggregator bucket aggregation & sorting]
+        GitWalk[pkg/gitutil/walker.go: Commit history traversal for churn analysis]
+        Aggregator[pkg/aggregator/aggregator.go: StreamAggregator bucket aggregation]
+        TreeAgg[pkg/aggregator/tree.go: TreeAggregator hierarchical tree aggregation]
+        ChurnAgg[pkg/aggregator/churn_aggregator.go: ChurnAggregator frequency & churn accumulation]
     end
 
     subgraph Presentation Layer
         FmtTable[pkg/formatter/table.go: Table output & ANSI color control]
         FmtJSON[pkg/formatter/json.go: JSON schema encoder]
         FmtDelimited[pkg/formatter/delimited.go: CSV & TSV encoder]
+        FmtMarkdown[pkg/formatter/markdown.go: GitHub Flavored Markdown table]
+        FmtTree[pkg/formatter/tree.go: Unicode hierarchical tree view]
+        FmtChurn[pkg/formatter/churn*.go: Churn table, JSON, markdown & CSV]
+    end
+
+    subgraph Interactive TUI Layer
+        TUIApp[pkg/tui/app.go: Interactive terminal tree browser]
     end
 
     subgraph Domain Models
-        Model[pkg/model: FileDiff, Entry, Summary, Report, ExitCodeError, Config]
+        Model[pkg/model: FileDiff, Entry, Summary, Report, TreeReport, ChurnReport, ExitCodeError, Config]
     end
 
     Main --> CmdRoot
     CmdRoot --> CmdArgs
+    CmdRoot --> CmdChurn
+    CmdRoot --> CmdTUI
     CmdRoot --> GitRepo
     GitRepo --> GitResolve
     CmdRoot --> Aggregator
+    CmdRoot --> TreeAgg
+    CmdChurn --> ChurnAgg
+    CmdTUI --> TUIApp
     Aggregator --> PathFilter
+    TreeAgg --> PathFilter
+    ChurnAgg --> PathFilter
     PathFilter -.-> GitDiff
     GitResolve --> GitDiff
     GitDiff -->|Stream callback: FileDiff| Aggregator
+    GitDiff -->|Stream callback: FileDiff| TreeAgg
+    GitWalk -->|Stream callback: Commit diffs| ChurnAgg
     Aggregator --> FmtTable
     Aggregator --> FmtJSON
     Aggregator --> FmtDelimited
+    Aggregator --> FmtMarkdown
+    TreeAgg --> FmtTree
+    ChurnAgg --> FmtChurn
+    TreeAgg --> TUIApp
 
     GitDiff -.-> Model
+    GitWalk -.-> Model
     Aggregator -.-> Model
+    TreeAgg -.-> Model
+    ChurnAgg -.-> Model
     FmtTable -.-> Model
     FmtJSON -.-> Model
     FmtDelimited -.-> Model
+    FmtMarkdown -.-> Model
+    FmtTree -.-> Model
+    FmtChurn -.-> Model
+    TUIApp -.-> Model
 ```
 
 ### 2.2 Pipeline Data Flow
@@ -98,13 +130,15 @@ flowchart TD
   - Processing commit specifications and positional arguments.
   - Enforcing mutual exclusivity and syntax correctness.
 - **Key Modules**:
-  - `cmd/root.go`: Initializes the root Cobra command (`NewRootCommand`). Executes the end-to-end pipeline in `RunE`. Directs formatted output to `cmd.OutOrStdout()`.
+  - `cmd/root.go`: Initializes the root Cobra command (`NewRootCommand`). Supports `--format tree`, `--tree`, and interactive `-i / --interactive` flags. Dispatches execution to standard aggregation, tree formatter, or interactive TUI.
   - `cmd/args.go`:
     - Separates commit arguments from `-- <target-path>` using `cmd.ArgsLenAtDash()`.
     - Prohibits simultaneous specification of `-t / --target` and `-- <target-path>` (Exit Code 2).
     - Parses 0-arg, 1-arg (`<commit>`), 2-arg (`<c1> <c2>`), two-dot (`..`), and three-dot (`...`) ranges. Automatically defaults omitted sides (e.g., `..feature`, `main..`) to `HEAD`.
     - Loads external exclude pattern files specified via `--exclude-from` / `--exclude-file` via `filter.LoadPatternsFromFile`, merging them into `Config.Exclude`. Non-existent or unreadable files fail immediately with Exit Code 2.
-    - Enforces `--depth >= 1`, valid sort fields (`files`, `added`, `deleted`, `net`, `path`), and supported formats (`table`, `json`, `csv`, `tsv`).
+    - Enforces `--depth >= 1`, valid sort fields (`files`, `added`, `deleted`, `net`, `path`, `percent`), and supported formats (`table`, `json`, `csv`, `tsv`, `markdown`, `tree`).
+  - `cmd/churn.go`: Initializes the `churn` / `hotspot` subcommand. Validates time filters (`--since`, `--until`), walk depth, history count (`-n`), and options (`--fast`, `--no-merges`, `--first-parent`, `--top`).
+  - `cmd/tui.go`: Initializes the `tui` subcommand. Enforces active terminal detection via `isatty` before initializing the interactive terminal UI.
 
 ### 3.2 `pkg/model` Package (Domain Entities)
 - **Responsibilities**: Defines immutable data models, configuration structs, and domain errors shared across packages, with zero external dependencies.
@@ -115,6 +149,8 @@ flowchart TD
   - `Entry`: Directory bucket metrics (`Path`, `IsRoot`, `Files`, `Added`, `Deleted`, `Net`).
   - `Summary`: Overall totals (`TotalFiles`, `TotalAdded`, `TotalDeleted`, `Net`).
   - `Report`: Top-level report containing target, depth, summary, and entries.
+  - `TreeNode` & `TreeReport`: Hierarchical directory tree structure for tree formatter and TUI browser.
+  - `ChurnConfig`, `ChurnEntry` & `ChurnReport`: Models representing commit frequency, cumulative lines modified, and hotspot ranks.
   - `ExitCodeError`: Carries integer exit codes (`1` or `2`) conforming to Go's `error` interface.
 
 ### 3.3 `pkg/filter` Package (Pre-filtering)
@@ -139,6 +175,8 @@ flowchart TD
     - `DiffCommitsStream(fromCommit, toCommit, filter, consumer)`: Streams tree diffs. Evaluates pre-filtering per file before calling `change.Patch()`, completely eliminating bulk memory spikes. Patches are processed and garbage collected one by one.
     - `DiffWorkingTreeStream(repo, headCommit, repoRoot, filter, consumer)`: Traverses `wt.Status()`. Employs chunked buffer streaming (`countLinesFromReader`) for new/deleted files, and stream comparison for binary files, preventing large file allocations.
     - Backward-compatible wrappers `DiffCommits` and `DiffWorkingTree` retain support for legacy buffered consumers.
+  - `walker.go`:
+    - `WalkCommitHistoryStream(repo, opts, filter, consumer)`: Traverses commit graph history applying `--since`, `--until`, `--max-count`, `--no-merges`, and `--first-parent` filters for churn analysis.
 
 ### 3.5 `pkg/aggregator` Package (Streaming Aggregation & Filtering)
 - **Responsibilities**: Transforms streaming file diffs into grouped, normalized, and deterministically sorted bucket entries.
@@ -146,6 +184,10 @@ flowchart TD
   - **Streaming Accumulator (`StreamAggregator`)**:
     - Accumulates metrics on-the-fly via `Consume(model.FileDiff)` with $O(D)$ memory complexity ($D$ = number of unique directory buckets).
     - Backward-compatible `Aggregate(diffs, opts)` delegates to `StreamAggregator`.
+  - **Hierarchical Tree Accumulator (`TreeAggregator`)**:
+    - Builds a recursive directory tree (`*model.TreeNode`) representing nested folders with aggregated subtree metrics.
+  - **Code Churn Accumulator (`ChurnAggregator`)**:
+    - Aggregates per-commit touches, tracking commit counts, unique files, and cumulative line churn per directory.
   - **Target Normalization & Boundary Check (`NormalizeTarget`)**:
     - Converts CWD-relative target paths to clean repository-root-relative paths.
     - Discards files outside the target path boundary before aggregation.
@@ -157,23 +199,26 @@ flowchart TD
     - Tracks unique file sets per bucket (`map[string]struct{}`).
     - Sums `Added`, `Deleted`, and computes signed delta `Net = Added - Deleted`.
   - **Deterministic Sorting (`sortEntries`)**:
-    - Sorts descending by the specified field (`added`, `deleted`, `net`, `files`, `path`).
+    - Sorts descending by the specified field (`added`, `deleted`, `net`, `files`, `path`, `percent`, `commits`, `churn`).
     - Enforces ascending alphabetical tie-breaking on `path`.
     - Reverses order when `--reverse` (`-r`) is active.
 
 ### 3.6 `pkg/formatter` Package (Presentation)
-- **Responsibilities**: Renders `model.Report` into target output formats implementing the `Formatter` interface.
+- **Responsibilities**: Renders `model.Report`, `model.TreeReport`, and `model.ChurnReport` into target output formats implementing the `Formatter` or `ChurnFormatter` interfaces.
 - **Key Modules**:
-  - `table.go`:
-    - Dynamically computes column widths (`Directory`, `Files`, `Added`, `Deleted`, `Net`).
-    - Detects TTY via `mattn/go-isatty` and applies ANSI colors (green additions, red deletions) unless `--no-color` or non-TTY.
-    - Formats root files as `<target>/ (root files)` or `(root files)`. Emits a summary `TOTAL` row.
-  - `json.go`:
-    - Produces schema-compliant formatted JSON (`json.MarshalIndent`).
-    - Guarantees `"entries": []` when no changes exist.
-  - `delimited.go`:
-    - Generates RFC 4180 compliant CSV (comma-separated) or TSV (tab-separated).
-    - Contains header and data records only (no `TOTAL` row).
+  - `table.go`: Dynamically computes column widths, supports ANSI colors, percent columns, and proportional inline bar graphs (`--stat`).
+  - `json.go`: Produces schema-compliant JSON representations.
+  - `delimited.go`: Generates RFC 4180 compliant CSV or TSV streams.
+  - `markdown.go`: Renders GitHub Flavored Markdown tables with code-spanned paths and bold summary totals.
+  - `tree.go`: Renders hierarchical Unicode trees (`├──`, `└──`) with metric columns and proportional bar graphs.
+  - `churn_*.go`: Specialized formatters (Table, JSON, CSV, TSV, Markdown) for code churn and hotspot reports.
+
+### 3.7 `pkg/tui` Package (Interactive Terminal UI)
+- **Responsibilities**: Provides an interactive terminal UI powered by `bubbletea` to explore and drill down the directory diff hierarchy.
+- **Key Capabilities**:
+  - **Terminal Protection**: Requires active TTY via `isatty.IsTerminal()`; fails cleanly with Exit Code 2 in non-interactive pipelines.
+  - **Navigation & Exploration**: Supports keyboard controls (`↑`/`↓`/`j`/`k` for selection, `Enter`/`Space`/`h`/`l` for branch expansion and collapsing).
+  - **Interactive Sorting**: Pressing `s` dynamically re-sorts tree nodes by metrics without re-computing diffs.
 
 ---
 
@@ -271,8 +316,10 @@ Following POSIX conventions and Section 7 of the specification, errors are stric
    - `pkg/gitutil/gitutil_test.go`: Exercises repository opening, empty repos, revision parsing, binary diffs, working tree diffs, and orphan commit merge-base errors.
    - `pkg/aggregator/aggregator_test.go`: Verifies depth slicing (depth 1 vs 2), root file bucketization, pattern exclusions, and deterministic sorting with tie-breaking.
    - `pkg/formatter/formatter_test.go`: Asserts exact output layout across Table, JSON, CSV, and TSV formats, including zero-diff handling and negative net metrics.
-2. **Integration Testing (`test/e2e_test.go`)**:
+2. **Integration Testing (`test/e2e_test.go`, `test/churn_e2e_test.go`, `test/tree_e2e_test.go`)**:
    - Creates isolated Git repositories on disk to test real Git workflows: branch creation, three-dot range merge bases, staged/unstaged changes, untracked exclusion, and CLI exit codes.
+   - `test/churn_e2e_test.go`: Verifies historical commit walks, `--since` / `--until` filters, and hotspot metric correctness.
+   - `test/tree_e2e_test.go`: Verifies hierarchical ASCII/Unicode branch line generation and recursive depth rendering.
 
 ### 6.2 Resource & Concurrency Safety
 - File descriptors (`io.ReadCloser`) in diff extraction are explicitly closed upon completion to guarantee zero resource leakage even in large repositories.

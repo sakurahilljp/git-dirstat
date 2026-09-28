@@ -61,7 +61,9 @@ git-dirstat [OPTIONS] [-t <target-path>] [<commit> [<commit>] | <commit>..<commi
 | `--depth` | `-d` | `1` | int | Directory tree depth relative to target path (must be >= 1) |
 | `--sort` | `-s` | `added` | string | Sort field: `files`, `added`, `deleted`, `net`, `path`, `percent` |
 | `--reverse` | `-r` | `false` | bool | Sort in ascending order (default: descending) |
-| `--format` | `-f` | `table` | string | Output format: `table`, `json`, `csv`, `tsv`, `markdown` (alias: `md`) |
+| `--format` | `-f` | `table` | string | Output format: `table`, `json`, `csv`, `tsv`, `markdown` (alias: `md`), `tree` |
+| `--tree` | | `false` | bool | Output hierarchical tree view (alias for `--format tree`) |
+| `--interactive` | `-i` | `false` | bool | Launch interactive terminal UI (TUI) to explore directory hierarchy |
 | `--percent` | | `false` | bool | Display change percentage column |
 | `--graph` | | `false` | bool | Display proportional inline change bar graph column |
 | `--stat` | | `false` | bool | Display both percentage and inline bar graph columns |
@@ -265,6 +267,27 @@ git-dirstat -t src/ -f markdown --stat
 | **TOTAL** | **28** | **1420** | **310** | **+1110** | **100.0%** | `++++++++++++++++----` |
 ```
 
+### 6.5 Tree Output (`--format tree` / `--tree`)
+
+Hierarchical tree visualization with Unicode branch lines (`├──`, `└──`). Displays directory nesting with collapsible-like visual clarity:
+
+```bash
+git-dirstat -t src/ -f tree --stat
+```
+
+```text
+Target: src/
+Files: 28  Added: +1420  Deleted: -310  Net: +1110
+
+src/
+├── components/          15  +820  -150  +670   56.1%  ++++++++++--
+│   ├── button/           8  +450   -80  +370   31.2%  ++++++-
+│   └── modal/            7  +370   -70  +300   24.9%  +++++-
+├── services/             8  +450  -120  +330   32.9%  ++++++-
+├── utils/                3  +120   -35   +85    9.0%  +-
+└── (root files)          2   +30    -5   +25    2.0%  +
+```
+
 ---
 
 ## 7. Error Handling & Exit Codes
@@ -275,7 +298,7 @@ All errors are reported to `stderr`.
 | --- | --- | --- |
 | `0` | Success | Operation completed successfully (including zero diffs) |
 | `1` | Git / Runtime | `.git` repository not found, repository has no commits, broken ref, invalid commit hash, or no common ancestor in `...` range |
-| `2` | User Input | Invalid argument, malformed range notation, combining range syntax with extra commits, `--depth < 1`, unrecognized flag, conflicting `-t` and `-- <path>`, or unreadable exclude pattern file specified via `--exclude-from` / `--exclude-file` |
+| `2` | User Input | Invalid argument, malformed range notation, combining range syntax with extra commits, `--depth < 1`, unrecognized flag, conflicting `-t` and `-- <path>`, unreadable exclude pattern file specified via `--exclude-from` / `--exclude-file`, or running interactive TUI in a non-terminal environment |
 
 ---
 
@@ -293,3 +316,94 @@ CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -trimpath -ldflags="-s -w" -o di
 # Windows (x64)
 CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -ldflags="-s -w" -o dist/git-dirstat-windows-amd64.exe .
 ```
+
+---
+
+## 9. Subcommands
+
+In addition to the primary dirstat aggregation, `git-dirstat` provides specialized subcommands for historical hotspot analysis and interactive exploration.
+
+### 9.1 Code Churn & Hotspot Analysis (`git-dirstat churn` / `git-dirstat hotspot`)
+
+Analyzes Git commit history over time to detect architectural hotspots by calculating commit frequency and code churn (cumulative added and deleted lines) aggregated by directory.
+
+#### Syntax
+
+```bash
+git-dirstat churn [OPTIONS] [<revision-range>] [-- <target-path>]
+```
+
+Alias: `git-dirstat hotspot`
+
+#### Options & Flags
+
+| Flag | Short | Default | Type | Description |
+| --- | --- | --- | --- | --- |
+| `--target` | `-t` | `.` | string | Base directory path to scope analysis (CWD-relative) |
+| `--depth` | `-d` | `1` | int | Aggregation depth relative to target path (must be >= 1) |
+| `--sort` | `-s` | `commits` | string | Sort field: `commits`, `churn`, `files`, `added`, `deleted`, `path`, `percent` |
+| `--reverse` | `-r` | `false` | bool | Sort in ascending order (default: descending) |
+| `--top` | | `0` | int | Limit output to top N directories (0: unlimited) |
+| `--format` | `-f` | `table` | string | Output format: `table`, `json`, `csv`, `tsv`, `markdown` (alias: `md`) |
+| `--since` | | `""` | string | Include commits after date (`YYYY-MM-DD` or `YYYY-MM-DDTHH:MM:SS`) |
+| `--until` | | `""` | string | Include commits before date (`YYYY-MM-DD` or `YYYY-MM-DDTHH:MM:SS`) |
+| `--max-count` | `-n` | `0` | int | Maximum number of commits to walk (0: unlimited) |
+| `--no-merges` | | `true` | bool | Skip merge commits with multiple parents |
+| `--first-parent` | | `false` | bool | Follow only the first parent commit upon merge commits |
+| `--fast` | | `false` | bool | Skip line-level diffs; compute commit counts and modified files rapidly |
+| `--percent` | | `false` | bool | Display percentage column (commit involvement rate or churn share) |
+| `--graph` | | `false` | bool | Display visual proportional bar graph |
+| `--stat` | | `false` | bool | Enable both `--percent` and `--graph` columns |
+| `--exclude` | `-e` | None | []string | Doublestar exclusion patterns |
+| `--exclude-from` | | None | []string | Read exclusion patterns from file (alias: `--exclude-file`) |
+| `--no-color` | | `false` | bool | Suppress ANSI color escapes |
+
+#### Output Example (Table with `--stat`)
+
+```bash
+git-dirstat churn -n 50 --depth 1 --stat
+```
+
+```text
+Directory           Commits   Files     Added   Deleted     Churn   Percent   Graph
+-----------------------------------------------------------------------------------------
+pkg/                     32      18     +1450      -210      1660     64.0%   ++++++++++--
+cmd/                     21       6      +480       -65       545     42.0%   ++++-
+docs/                    14       4      +310       -40       350     28.0%   ++
+(root files)              8       3       +95       -15       110     16.0%   +
+-----------------------------------------------------------------------------------------
+TOTAL                    50      31     +2335      -330      2665    100.0%   ++++++++++++-
+```
+
+---
+
+### 9.2 Interactive Terminal UI (`git-dirstat tui` / `-i, --interactive`)
+
+Launches a full-screen, interactive Terminal User Interface (TUI) to explore directory trees, drill down into nested packages, and inspect modifications.
+
+#### Invocation
+
+```bash
+# Via dedicated subcommand:
+git-dirstat tui [OPTIONS] [<commit> [<commit>] | <range>] [-- <target-path>]
+
+# Or via the root interactive flag:
+git-dirstat -i [OPTIONS] [<commit> [<commit>] | <range>] [-- <target-path>]
+```
+
+#### Terminal Requirement & Error Handling
+
+- Requires an interactive TTY terminal (`os.Stdin` and `os.Stdout`).
+- If invoked in non-interactive environments (pipes, scripts, CI/CD runners without TTY allocation), exits immediately with **Exit Code 2** (`cannot run interactive TUI in non-terminal environment`).
+
+#### Keybindings & Controls
+
+| Key | Action |
+| --- | --- |
+| `↑` / `k` | Move cursor up |
+| `↓` / `j` | Move cursor down |
+| `Enter` / `Space` | Expand or collapse selected directory branch |
+| `←` / `h` | Collapse current directory / jump to parent |
+| `→` / `l` | Expand selected directory |
+| `s` | Cycle sort order (Added, Deleted, Net, Files, Path) |
+| `q` / `Esc` / `Ctrl+C` | Exit interactive TUI |
